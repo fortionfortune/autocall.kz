@@ -16,7 +16,7 @@
   },
   "servers": [
     {
-      "url": "http://autocall.kz/api/v1"
+      "url": "https://autocall.kz/api/v1"
     }
   ],
   "paths": {
