@@ -57,7 +57,7 @@ POST запрос будет содержать JSON и иметь соотве�
     "bulk_id": 9,
     "number": "+77010000001",
     "extra": "папа",
-    "status": "delivered ",
+    "status": "delivered",
     "provider": "Kcell",
     "init_time": "2020-04-14 19:42:32",
     "status_time": "2020-04-14 19:42:45",
