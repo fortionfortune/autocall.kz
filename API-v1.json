@@ -8746,7 +8746,7 @@
                   },
                   "list_id": {
                     "type": "array",
-                    "description": "Массив из ID Ваших списков контактов или из объектов с номерами. Максимум 6000 элементов.",
+                    "description": "Массив из ID Ваших списков контактов или из объектов с номерами. Максимум 5000 элементов.",
                     "maxItems": 5000,
                     "minItems": 1,
                     "items": {
@@ -12027,7 +12027,7 @@
                   },
                   "list_id": {
                     "type": "array",
-                    "description": "Массив из ID списков контактов и/или из объектов для рассылки. Максимум 6000 элементов в массиве.",
+                    "description": "Массив из ID списков контактов и/или из объектов для рассылки. Максимум 5000 элементов в массиве.",
                     "maxItems": 5000,
                     "minItems": 1,
                     "items": {
@@ -13374,6 +13374,216 @@
         "tags": [
           "06 SMS рассылки"
         ]
+      }
+    },
+    "/sounds/listen/{file}": {
+      "parameters": [
+        {
+          "schema": {
+            "type": "string"
+          },
+          "name": "file",
+          "in": "path",
+          "required": true,
+          "description": "Название аудиозаписи, которая доступна в параметре `data` интерактивных обзвонов"
+        }
+      ],
+      "get": {
+        "summary": "a. Доступ к элементу Record в интерактивных обзвонах",
+        "tags": [
+          "05 Обзвоны"
+        ],
+        "responses": {
+          "200": {
+            "description": "Если указан `type`=`download`, то сервер вернёт Вам файл для скачивания. В случае с `type`=`text` сервер вернёт JSON с распознанным текстом.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "text"
+                  ]
+                },
+                "examples": {
+                  "Пример ответа при распознавании": {
+                    "value": {
+                      "text": "алло девушка мне надо соединить с Гульжан адвокат которая алло"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Вы не отправили ключ API в запросе.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "На Вашем балансе недостаточно средств для распознавания речи.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Не удалось обнаружить аудиозапись в Вашем аккаунте по параметру `file`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "object",
+                      "required": [
+                        "file"
+                      ],
+                      "properties": {
+                        "file": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "errors"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Неправильно сформирован запрос.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "object",
+                      "required": [
+                        "parameter name"
+                      ],
+                      "properties": {
+                        "parameter name": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "errors"
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Слишком много запросов в минуту.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Произошла ошибка на сервере при попытке распознать речь.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-sounds-listen-file",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/0"
+          },
+          {
+            "$ref": "#/components/parameters/1"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "download",
+                "text"
+              ],
+              "default": "download"
+            },
+            "in": "query",
+            "name": "type",
+            "description": "`text` - сервер вернет распознанную речь из аудиозаписи в виде текста\n\n`download` - сервер вернёт саму аудиозапись для скачивания"
+          }
+        ],
+        "description": "Данный запрос позволит получить доступ к элементу `Record` (Записать речь) в интерактивных обзвонах по сценарию. \n\nПри просмотре результатов интерактивного обзвона по сценарию через API, если в сценарии содержался элемент `Record` (Записать речь), а также если абонент \"прошёл\" через этот элемент и оставил запись, то Вы можете увидеть примерно следующую картину:\n```\n...\n  \"0ab4e123-fd75-42c6-a550-51fd1a861df0\": {\n      \"data\": \"autocall-132-0bg4e582-fd73-42c6-a558-51fa4s861ba0-643111.wav\",\n      \"name\": \"Запись отзыва\",\n      \"type\": \"record\"\n  }\n...\n```\nИсходя из приведенного примера, чтобы скачать файл с записью абонента Вам необходимо отправить `GET` запрос по адресу: \n`https://autocall.kz/api/v1/sounds/listen/autocall-132-0bg4e582-fd73-42c6-a558-51fa4s861ba0-643111.wav?type=download`\n\nДля того, чтобы сервер вернул Вам распознанный текст из этой аудиозаписи, Вам необходимо отправить следующий `GET` запрос:\n`https://autocall.kz/api/v1/sounds/listen/autocall-132-0bg4e582-fd73-42c6-a558-51fa4s861ba0-643111.wav?type=text`\n\nСтоимость распознавания речи указана в Вашем тарифном плане."
       }
     }
   },
