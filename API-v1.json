@@ -8969,11 +8969,9 @@
                     "audio_id": [
                       {
                         "type": "synthesis",
-                        "data": [
-                          {
-                            "text": "Скажи-ка, дядя, ведь не даром Москва, спаленная пожаром, Французу отдана?"
-                          }
-                        ]
+                        "data": {
+                          "text": "Скажи-ка, дядя, ведь не даром Москва, спаленная пожаром, Французу отдана?"
+                        }
                       }
                     ],
                     "list_id": [
@@ -13592,7 +13590,7 @@
       "Authorization": {
         "type": "http",
         "scheme": "bearer",
-        "description": "Необходимо ввести API ключ, который отображается в Личном Кабинете в разделе Настройки -> API Интеграция. \n\nНапример:\n\nAuthorization: Bearer CqOZRfIGn9OgNWHUzNk0toFFIuKI1cM9k0tJfV5QaqrWqoEAMFGWszqceEwT"
+        "description": "Необходимо ввести API ключ, который отображается в Личном Кабинете в разделе Настройки -> API Интеграция. \n\nНапример:\n\nAuthorization: Bearer ВАШ КЛЮЧ"
       }
     },
     "schemas": {},
