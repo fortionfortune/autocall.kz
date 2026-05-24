@@ -13595,6 +13595,132 @@
         ],
         "description": "Данный запрос позволит получить доступ к элементу `Record` (Записать речь) в интерактивных обзвонах по сценарию. \n\nПри просмотре результатов интерактивного обзвона по сценарию через API, если в сценарии содержался элемент `Record` (Записать речь), а также если абонент \"прошёл\" через этот элемент и оставил запись, то Вы можете увидеть примерно следующую картину:\n```\n...\n  \"0ab4e123-fd75-42c6-a550-51fd1a861df0\": {\n      \"data\": \"autocall-132-0bg4e582-fd73-42c6-a558-51fa4s861ba0-643111.wav\",\n      \"name\": \"Запись отзыва\",\n      \"type\": \"record\"\n  }\n...\n```\nИсходя из приведенного примера, чтобы скачать файл с записью абонента Вам необходимо отправить `GET` запрос по адресу: \n`https://autocall.kz/api/v1/sounds/listen/autocall-132-0bg4e582-fd73-42c6-a558-51fa4s861ba0-643111.wav?type=download`\n\nДля того, чтобы сервер вернул Вам распознанный текст из этой аудиозаписи, Вам необходимо отправить следующий `GET` запрос:\n`https://autocall.kz/api/v1/sounds/listen/autocall-132-0bg4e582-fd73-42c6-a558-51fa4s861ba0-643111.wav?type=text`\n\nСтоимость распознавания речи указана в Вашем тарифном плане."
       }
+    },
+    "/flash-calls": {
+      "post": {
+        "summary": "Отправить Flash Call",
+        "tags": [],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "Content-type: application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "x-stoplight": {
+                        "id": "0k985fvgpa5ad"
+                      }
+                    },
+                    "code": {
+                      "type": "string",
+                      "x-stoplight": {
+                        "id": "92cpgof28o3cp"
+                      }
+                    },
+                    "number": {
+                      "type": "string",
+                      "x-stoplight": {
+                        "id": "9utl0wh2k9ihd"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Недостаточно средств на балансе"
+          },
+          "422": {
+            "description": "Неправильно заполнены поля. Детали в теле ответа. \n\nЛибо указанный code не может быть отправлен, т.к. у нас нету такого номера."
+          },
+          "429": {
+            "description": "не более 3 попыток в течение 5 минут на один номер"
+          }
+        },
+        "operationId": "post-flash-calls",
+        "x-stoplight": {
+          "id": "ohm7q7clatfww"
+        },
+        "security": [
+          {
+            "Authorization": []
+          }
+        ],
+        "description": "",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "header",
+            "name": "Accept: application/json"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "header",
+            "name": "Content-type: application/json"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "number"
+                ],
+                "properties": {
+                  "number": {
+                    "type": "string",
+                    "x-stoplight": {
+                      "id": "6i61bblue9b19"
+                    },
+                    "example": "+77000000000",
+                    "minLength": 12,
+                    "maxLength": 12,
+                    "pattern": "^\\+7(700|701|702|705|706|707|708|747|771|775|776|777|778|710|711|712|713|714|715|716|717|718|721|722|723|724|725|726|727|728|729|736)\\d{7}$"
+                  },
+                  "digits": {
+                    "type": "integer",
+                    "x-stoplight": {
+                      "id": "1qvgw591ojs1i"
+                    },
+                    "minimum": 3,
+                    "maximum": 6,
+                    "description": "Use it for Auto-code method.\nHow many digits we should generate?\nRequired if \"code\" is not present."
+                  },
+                  "code": {
+                    "type": "string",
+                    "x-stoplight": {
+                      "id": "oaq7yluenyijp"
+                    },
+                    "example": 1234,
+                    "format": "regex",
+                    "pattern": "^\\d{3,6}$",
+                    "minLength": 3,
+                    "maxLength": 6,
+                    "description": "Use it for Own code method.\nRequired if \"digits\" is not present"
+                  }
+                }
+              }
+            }
+          },
+          "description": "Для метода Авто-код отправьте параметр digits. Для своего кода отправьте параметр code.\n\nВнимание! Из-за ограниченного количества номеров от провайдеров при отправке своего кода можно получить ошибку 422. Используйте метод Авто-код для 100% отправки.\n\nRate limit - не более 3 попыток на один номер в течение 5 минут."
+        }
+      }
     }
   },
   "components": {
