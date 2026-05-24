@@ -194,6 +194,8 @@ paths:
       x-stoplight:
         id: f1y8gq79e7w87
   /lists:
+    servers:
+      - url: 'https://autocall.kz/api/v1'
     get:
       summary: Получить все списки контактов
       operationId: get-lists
