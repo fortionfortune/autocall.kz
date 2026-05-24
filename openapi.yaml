@@ -1,9 +1,8 @@
 openapi: 3.1.0
-x-stoplight:
-  id: zmhu7z3i8j3ch
+
 info:
   title: AutoCall.kz API
-  version: '1.0'
+  version: "1.0"
   description: |
     REST API сервиса автообзвона AutoCall.kz.
 
@@ -27,14 +26,17 @@ info:
   contact:
     name: Поддержка AutoCall.kz
     email: info@autocall.kz
-    url: 'https://autocall.kz'
+    url: https://autocall.kz
+
 servers:
-  - url: 'https://autocall.kz/api/v1'
+  - url: https://autocall.kz/api/v1
     description: API v1 (требует Bearer токен)
-  - url: 'https://autocall.kz/api/public'
+  - url: https://autocall.kz/api/public
     description: Публичный API (без аутентификации)
+
 security:
   - bearerAuth: []
+
 tags:
   - name: Публичный API
     description: Эндпоинты без аутентификации — тарифы и тестовый звонок.
@@ -51,7 +53,7 @@ tags:
   - name: SMS рассылки
     description: Создание и управление SMS рассылками.
   - name: Настройки
-    description: 'Управление настройками аккаунта, номерами и визитной карточкой.'
+    description: Управление настройками аккаунта, номерами и визитной карточкой.
   - name: Платежи
     description: Управление балансом и просмотр транзакций.
   - name: Панель мониторинга
@@ -70,19 +72,24 @@ tags:
       - **Свой код** (`code`) — вы передаёте нужный код. Может вернуть 422 если нужного номера нет в пуле.
 
       **Rate limit:** не более 3 попыток на один номер в течение 5 минут.
+
 paths:
+
+  # ─────────────────────────────────────────
+  # ПУБЛИЧНЫЙ API (без авторизации)
+  # ─────────────────────────────────────────
+
   /tariffs:
     servers:
-      - url: 'https://autocall.kz/api/public'
+      - url: https://autocall.kz/api/public
     get:
       operationId: getTariffs
       summary: Получить актуальные тарифы
-      tags:
-        - Публичный API
+      tags: [Публичный API]
       security: []
-      description: 'Возвращает список тарифных планов с ценами на звонки, SMS и синтез речи. Данные кешируются на 1 час.'
+      description: Возвращает список тарифных планов с ценами на звонки, SMS и синтез речи. Данные кешируются на 1 час.
       responses:
-        '200':
+        "200":
           description: Список тарифов
           content:
             application/json:
@@ -97,10 +104,10 @@ paths:
                   tariffs:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Tariff'
+                      $ref: "#/components/schemas/Tariff"
               example:
                 currency: KZT
-                note: 'Цены за единицу: звонок (секунда тарификации), SMS (1 сообщение).'
+                note: "Цены за единицу: звонок (секунда тарификации), SMS (1 сообщение)."
                 tariffs:
                   - name: BRONZE
                     threshold: 0
@@ -123,16 +130,14 @@ paths:
                     synthesis_price: 1.5
                     speech_price: 1.5
                     recording_price: 0.5
-      x-stoplight:
-        id: wr4cj1rs6l8ki
+
   /test-call:
     servers:
-      - url: 'https://autocall.kz/api/public'
+      - url: https://autocall.kz/api/public
     post:
       operationId: sendTestCall
       summary: Отправить тестовый звонок
-      tags:
-        - Публичный API
+      tags: [Публичный API]
       security: []
       description: |
         Инициирует реальный тестовый звонок от AutoCall.kz на указанный казахстанский номер телефона.
@@ -153,13 +158,13 @@ paths:
               properties:
                 phone:
                   type: string
-                  description: 'Казахстанский мобильный номер без +7, только цифры после 7'
-                  pattern: '^(700|701|702|705|706|707|708|747|771|775|776|777|778|710|711|712|713|714|715|716|717|718|721|722|723|724|725|726|727|728|729|736)\d{7}$'
-                  example: '7771234567'
+                  description: Казахстанский мобильный номер без +7, только цифры после 7
+                  pattern: "^(700|701|702|705|706|707|708|747|771|775|776|777|778|710|711|712|713|714|715|716|717|718|721|722|723|724|725|726|727|728|729|736)\\d{7}$"
+                  example: "7771234567"
             example:
-              phone: '7771234567'
+              phone: "7771234567"
       responses:
-        '200':
+        "200":
           description: Звонок успешно инициирован
           content:
             application/json:
@@ -171,36 +176,38 @@ paths:
                   number:
                     type: string
               example:
-                message: Тестовый звонок отправлен на номер +77771234567. Ожидайте звонка в течение 1–2 минут.
-                number: '+77771234567'
-        '403':
-          description: Номер в чёрном списке или запрос заблокирован
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorMessage'
-        '422':
+                message: "Тестовый звонок отправлен на номер +77771234567. Ожидайте звонка в течение 1–2 минут."
+                number: "+77771234567"
+        "422":
           description: Валидация не прошла или звонки недоступны сейчас
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorMessage'
-        '429':
+                $ref: "#/components/schemas/ErrorMessage"
+        "429":
           description: Номер уже получил тестовый звонок сегодня или превышен rate limit
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorMessage'
-      x-stoplight:
-        id: f1y8gq79e7w87
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          description: Номер в чёрном списке или запрос заблокирован
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+
+  # ─────────────────────────────────────────
+  # СПИСКИ КОНТАКТОВ
+  # ─────────────────────────────────────────
+
   /lists:
     servers:
-      - url: 'https://autocall.kz/api/v1'
+      - url: https://autocall.kz/api/v1
     get:
       summary: Получить все списки контактов
       operationId: get-lists
-      tags:
-        - Списки контактов
+      tags: [Списки контактов]
       description: Возвращает все списки контактов с постраничным выводом. Поддерживает фильтрацию по дате и client_id.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -228,43 +235,37 @@ paths:
                 current_page: 1
                 data:
                   - id: 73
-                    client_id: 123e4567-e89b-12d3-a456-426655440000
-                    name: Клиенты март
+                    client_id: "123e4567-e89b-12d3-a456-426655440000"
+                    name: "Клиенты март"
                     importing: false
                     nonexistent: null
-                    created_at: '2024-03-31 05:55:19'
-                    updated_at: '2024-03-31 05:55:19'
+                    created_at: "2024-03-31 05:55:19"
+                    updated_at: "2024-03-31 05:55:19"
                     contacts_count: 250
                     used: 3
-                first_page_url: 'https://autocall.kz/api/v1/lists?page=1'
+                first_page_url: "https://autocall.kz/api/v1/lists?page=1"
                 from: 1
                 last_page: 2
-                last_page_url: 'https://autocall.kz/api/v1/lists?page=2'
-                next_page_url: 'https://autocall.kz/api/v1/lists?page=2'
-                path: 'https://autocall.kz/api/v1/lists'
+                last_page_url: "https://autocall.kz/api/v1/lists?page=2"
+                next_page_url: "https://autocall.kz/api/v1/lists?page=2"
+                path: "https://autocall.kz/api/v1/lists"
                 per_page: 23
                 prev_page_url: null
                 to: 23
                 total: 27
-        '401':
-          $ref: '#/components/responses/401'
+        '401': { $ref: '#/components/responses/401' }
         '404':
           description: Список не найден по указанному `client_id`.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorMessage'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: 43jkz1hxwr7x5
+              schema: { $ref: '#/components/schemas/ErrorMessage' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+
     post:
       summary: Создать новый список контактов
       operationId: post-lists
-      tags:
-        - Списки контактов
+      tags: [Списки контактов]
       description: |
         Создаёт новый список контактов. Максимум 10 000 номеров в одном запросе.
         Для загрузки большего количества — создайте список с первыми 10 000 контактами, затем дополните через `/lists/append/{id}`.
@@ -278,9 +279,7 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - name
-                - numbers
+              required: [name, numbers]
               properties:
                 name:
                   type: string
@@ -293,8 +292,7 @@ paths:
                   description: Массив с номерами телефонов
                   items:
                     type: object
-                    required:
-                      - number
+                    required: [number]
                     properties:
                       number:
                         type: string
@@ -305,7 +303,7 @@ paths:
                       extra:
                         type: string
                         maxLength: 30
-                        description: 'Дополнительное описание (ФИО, ИИН и т.п.)'
+                        description: Дополнительное описание (ФИО, ИИН и т.п.)
                 client_id:
                   type: string
                   maxLength: 256
@@ -313,19 +311,19 @@ paths:
             examples:
               Простой список:
                 value:
-                  name: Клиенты апрель
+                  name: "Клиенты апрель"
                   numbers:
-                    - number: '+77010000001'
-                    - number: '+77010000002'
+                    - number: "+77010000001"
+                    - number: "+77010000002"
               С client_id и описанием:
                 value:
-                  name: VIP клиенты
-                  client_id: vip-2024
+                  name: "VIP клиенты"
+                  client_id: "vip-2024"
                   numbers:
-                    - number: '+77010000001'
-                      extra: Иванов И.И.
-                    - number: '+77010000002'
-                      extra: Петров П.П.
+                    - number: "+77010000001"
+                      extra: "Иванов И.И."
+                    - number: "+77010000002"
+                      extra: "Петров П.П."
       responses:
         '201':
           description: Список успешно создан.
@@ -335,34 +333,32 @@ paths:
                 $ref: '#/components/schemas/ContactList'
               example:
                 id: 74
-                name: Клиенты апрель
-                client_id: vip-2024
+                name: "Клиенты апрель"
+                importing: false
+                nonexistent: null
+                client_id: "vip-2024"
+                used: 0
                 contacts_count: 2
-                created_at: '2024-04-11 22:14:09'
-                updated_at: '2024-04-11 22:14:09'
-        '401':
-          $ref: '#/components/responses/401'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: uvgtom5ad90xo
-  '/lists/{id}':
+                created_at: "2024-04-11 22:14:09"
+                updated_at: "2024-04-11 22:14:09"
+        '401': { $ref: '#/components/responses/401' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
+  /lists/{id}:
+    servers:
+      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
         required: true
-        schema:
-          type: integer
+        schema: { type: integer }
         description: ID списка
     get:
       summary: Показать список
       operationId: get-lists-id
-      tags:
-        - Списки контактов
+      tags: [Списки контактов]
       description: Возвращает детальную информацию о списке с контактами (постраничный вывод).
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -387,19 +383,13 @@ paths:
                                 type: array
                                 items:
                                   $ref: '#/components/schemas/Contact'
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: 1jq1xdv64v6g7
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '429': { $ref: '#/components/responses/429' }
     put:
       summary: Редактировать список
       operationId: put-lists-id
-      tags:
-        - Списки контактов
+      tags: [Списки контактов]
       description: Изменяет название или client_id списка контактов.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -422,25 +412,16 @@ paths:
           description: Обновлённый объект списка.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ContactList'
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: 33kcascol3oqs
+              schema: { $ref: '#/components/schemas/ContactList' }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
     delete:
       summary: Удалить список
       operationId: delete-lists-id
-      tags:
-        - Списки контактов
+      tags: [Списки контактов]
       description: Удаляет список контактов и все контакты в нём.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -448,31 +429,25 @@ paths:
       responses:
         '204':
           description: Список удалён.
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: pt8f10bpzgvuf
-  '/lists/append/{id}':
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
+  /lists/append/{id}:
+    servers:
+      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
         required: true
-        schema:
-          type: integer
-        description: 'ID списка, который нужно дополнить'
+        schema: { type: integer }
+        description: ID списка, который нужно дополнить
     post:
       summary: Дополнить список контактов
       operationId: post-lists-append-id
-      tags:
-        - Списки контактов
+      tags: [Списки контактов]
       description: Добавляет номера в уже существующий список контактов.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -483,16 +458,14 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - numbers
+              required: [numbers]
               properties:
                 numbers:
                   type: array
                   maxItems: 10000
                   items:
                     type: object
-                    required:
-                      - number
+                    required: [number]
                     properties:
                       number:
                         type: string
@@ -510,41 +483,29 @@ paths:
               schema:
                 type: object
                 properties:
-                  id:
-                    type: integer
-                  client_id:
-                    type:
-                      - string
-                      - 'null'
-                  contacts_count:
-                    type: integer
-                  created_at:
-                    type: string
-                  updated_at:
-                    type: string
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: i8ram8qvsk5nh
-  '/lists/nonexistent/{id}':
+                  id: { type: integer }
+                  client_id: { type: [string, "null"] }
+                  contacts_count: { type: integer }
+                  created_at: { type: string }
+                  updated_at: { type: string }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+
+  /lists/nonexistent/{id}:
+    servers:
+      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
         required: true
-        schema:
-          type: integer
+        schema: { type: integer }
         description: ID списка
     delete:
       summary: Удалить несуществующие номера из списка
       operationId: delete-lists-nonexistent-id
-      tags:
-        - Списки контактов
+      tags: [Списки контактов]
       description: |
         Удаляет из списка номера, которые оператор пометил как несуществующие в ходе обзвонов.
         Несуществующие номера появляются в поле `nonexistent` после завершения обзвона.
@@ -554,55 +515,46 @@ paths:
       responses:
         '204':
           description: Несуществующие номера удалены.
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: 76mgla6401odf
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
     put:
       summary: Проигнорировать несуществующие номера
       operationId: put-lists-nonexistent-id
-      tags:
-        - Списки контактов
+      tags: [Списки контактов]
       description: Сбрасывает флаг несуществующих номеров в списке без их удаления.
       parameters:
         - $ref: '#/components/parameters/ContentType'
         - $ref: '#/components/parameters/Accept'
       responses:
         '200':
-          description: 'Флаг сброшен, возвращается обновлённый объект списка.'
+          description: Флаг сброшен, возвращается обновлённый объект списка.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ContactList'
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: n8hi1v8gx81nj
-  '/contacts/{id}':
+              schema: { $ref: '#/components/schemas/ContactList' }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
+  # ─────────────────────────────────────────
+  # КОНТАКТЫ
+  # ─────────────────────────────────────────
+
+  /contacts/{id}:
+    servers:
+      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
         required: true
-        schema:
-          type: integer
+        schema: { type: integer }
         description: ID контакта
     get:
       summary: Показать контакт
       operationId: get-contacts-id
-      tags:
-        - Контакты
+      tags: [Контакты]
       description: Возвращает информацию о конкретном контакте по его ID.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -612,28 +564,21 @@ paths:
           description: Объект контакта.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Contact'
+              schema: { $ref: '#/components/schemas/Contact' }
               example:
                 id: 49
                 list_id: 73
-                number: '+77010000001'
-                extra: Иванов И.И.
-                created_at: '2024-03-31 05:55:19'
-                updated_at: '2024-03-31 05:55:19'
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: ofz5y1usegows
+                number: "+77010000001"
+                extra: "Иванов И.И."
+                created_at: "2024-03-31 05:55:19"
+                updated_at: "2024-03-31 05:55:19"
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '429': { $ref: '#/components/responses/429' }
     delete:
       summary: Удалить контакт
       operationId: delete-contacts-id
-      tags:
-        - Контакты
+      tags: [Контакты]
       description: Удаляет контакт из списка контактов.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -641,24 +586,23 @@ paths:
       responses:
         '204':
           description: Контакт удалён.
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: 17obzxqjy87hk
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
+  # ─────────────────────────────────────────
+  # АУДИОЗАПИСИ
+  # ─────────────────────────────────────────
+
   /sounds:
+    servers:
+      - url: https://autocall.kz/api/v1
     get:
       summary: Получить все аудиозаписи
       operationId: get-sounds
-      tags:
-        - Аудиозаписи
+      tags: [Аудиозаписи]
       description: Возвращает все аудиозаписи аккаунта с постраничным выводом.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -678,17 +622,13 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/Sound'
-        '401':
-          $ref: '#/components/responses/401'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: y6jyuc52ishlg
+        '401': { $ref: '#/components/responses/401' }
+        '429': { $ref: '#/components/responses/429' }
+
     post:
       summary: Создать аудиозапись
       operationId: post-sounds
-      tags:
-        - Аудиозаписи
+      tags: [Аудиозаписи]
       description: |
         Создаёт аудиозапись двумя способами:
         - `synthesis` — синтез речи из текста
@@ -703,10 +643,7 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - name
-                - type
-                - data
+              required: [name, type, data]
               properties:
                 name:
                   type: string
@@ -715,9 +652,7 @@ paths:
                   description: Название аудиозаписи
                 type:
                   type: string
-                  enum:
-                    - synthesis
-                    - upload
+                  enum: [synthesis, upload]
                   description: Тип — синтез речи или загрузка файла
                 data:
                   type: array
@@ -731,11 +666,11 @@ paths:
                         type: string
                         minLength: 1
                         maxLength: 400
-                        description: 'Если type=synthesis: текст для синтеза (обязательно)'
+                        description: "Если type=synthesis: текст для синтеза (обязательно)"
                       voice:
                         type: string
                         default: ru-RU-Wavenet-B
-                        description: 'Если type=synthesis: голос для синтеза'
+                        description: "Если type=synthesis: голос для синтеза"
                         enum:
                           - ru-RU-Wavenet-A
                           - ru-RU-Wavenet-B
@@ -752,16 +687,16 @@ paths:
                         default: 1
                         minimum: 0.25
                         maximum: 4
-                        description: 'Если type=synthesis: скорость речи'
+                        description: "Если type=synthesis: скорость речи"
                       pitch:
                         type: number
                         default: 0
                         minimum: -20
                         maximum: 20
-                        description: 'Если type=synthesis: высота тона'
+                        description: "Если type=synthesis: высота тона"
                       file:
                         type: string
-                        description: 'Если type=upload: файл в формате Base64 (mp3/wav/ogg, обязательно)'
+                        description: "Если type=upload: файл в формате Base64 (mp3/wav/ogg, обязательно)"
                 client_id:
                   type: string
                   maxLength: 60
@@ -769,55 +704,48 @@ paths:
             examples:
               Синтез речи:
                 value:
-                  name: Уведомление об оплате
+                  name: "Уведомление об оплате"
                   type: synthesis
                   data:
-                    - text: Здравствуйте! Напоминаем об оплате до конца месяца.
+                    - text: "Здравствуйте! Напоминаем об оплате до конца месяца."
                       voice: ru-RU-Wavenet-B
                       speed: 1
                       pitch: 0
               Загрузка файла:
                 value:
-                  name: Моё приветствие
+                  name: "Моё приветствие"
                   type: upload
                   data:
-                    - file: base64_строка_файла_mp3
+                    - file: "base64_строка_файла_mp3"
       responses:
         '201':
           description: Аудиозапись создана и отправлена на модерацию.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Sound'
-        '401':
-          $ref: '#/components/responses/401'
+              schema: { $ref: '#/components/schemas/Sound' }
+        '401': { $ref: '#/components/responses/401' }
         '402':
           description: Недостаточно средств для синтеза речи.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorMessage'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: fu0nk8hq3y0l2
-  '/sounds/{id}':
+              schema: { $ref: '#/components/schemas/ErrorMessage' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
+  /sounds/{id}:
+    servers:
+      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
         required: true
-        schema:
-          type: integer
+        schema: { type: integer }
         description: ID аудиозаписи
     get:
       summary: Показать аудиозапись
       operationId: get-sounds-id
-      tags:
-        - Аудиозаписи
+      tags: [Аудиозаписи]
       description: Возвращает детальную информацию об аудиозаписи.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -827,21 +755,14 @@ paths:
           description: Объект аудиозаписи.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Sound'
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: 3xwauqdiskvze
+              schema: { $ref: '#/components/schemas/Sound' }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '429': { $ref: '#/components/responses/429' }
     put:
       summary: Редактировать аудиозапись
       operationId: put-sounds-id
-      tags:
-        - Аудиозаписи
+      tags: [Аудиозаписи]
       description: Изменяет название или client_id аудиозаписи.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -864,25 +785,16 @@ paths:
           description: Обновлённый объект аудиозаписи.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Sound'
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: zf1ric3npx7kp
+              schema: { $ref: '#/components/schemas/Sound' }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
     delete:
       summary: Удалить аудиозапись
       operationId: delete-sounds-id
-      tags:
-        - Аудиозаписи
+      tags: [Аудиозаписи]
       description: Удаляет аудиозапись из аккаунта.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -890,31 +802,25 @@ paths:
       responses:
         '204':
           description: Аудиозапись удалена.
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: 48cl2h3lcl2hx
-  '/sounds/listen/{file}':
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
+  /sounds/listen/{file}:
+    servers:
+      - url: https://autocall.kz/api/v1
     parameters:
       - name: file
         in: path
         required: true
-        schema:
-          type: string
+        schema: { type: string }
         description: Имя аудиофайла из поля `data` интерактивных обзвонов
     get:
       summary: Получить запись из интерактивного обзвона
       operationId: get-sounds-listen-file
-      tags:
-        - Аудиозаписи
+      tags: [Аудиозаписи]
       description: |
         Доступ к записям голосовых ответов абонентов в интерактивных обзвонах (элемент типа `record`).
 
@@ -929,9 +835,7 @@ paths:
           required: true
           schema:
             type: string
-            enum:
-              - download
-              - text
+            enum: [download, text]
           description: Способ получения записи
       responses:
         '200':
@@ -940,36 +844,32 @@ paths:
             application/json:
               schema:
                 type: object
-                required:
-                  - text
+                required: [text]
                 properties:
                   text:
-                    type:
-                      - string
-                      - 'null'
+                    type: [string, "null"]
                     description: Распознанный текст (только при type=text)
-        '401':
-          $ref: '#/components/responses/401'
+        '401': { $ref: '#/components/responses/401' }
         '402':
           description: Недостаточно средств для распознавания речи.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorMessage'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: pd6qr274o6l45
+              schema: { $ref: '#/components/schemas/ErrorMessage' }
+        '404': { $ref: '#/components/responses/404' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+
+  # ─────────────────────────────────────────
+  # СЦЕНАРИИ
+  # ─────────────────────────────────────────
+
   /scenarios:
+    servers:
+      - url: https://autocall.kz/api/v1
     get:
       summary: Получить все сценарии
       operationId: get-scenarios
-      tags:
-        - Сценарии
+      tags: [Сценарии]
       description: Возвращает все сценарии аккаунта с постраничным выводом.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -989,17 +889,13 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/Scenario'
-        '401':
-          $ref: '#/components/responses/401'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: w0kuk72rdiy0p
+        '401': { $ref: '#/components/responses/401' }
+        '429': { $ref: '#/components/responses/429' }
+
     post:
       summary: Создать сценарий
       operationId: post-scenarios
-      tags:
-        - Сценарии
+      tags: [Сценарии]
       description: Создаёт новый интерактивный сценарий для обзвонов. Сценарий передаётся как JSON-строка в параметре `data`.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -1011,9 +907,7 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - name
-                - data
+              required: [name, data]
               properties:
                 name:
                   type: string
@@ -1032,32 +926,26 @@ paths:
           description: Сценарий создан и отправлен на модерацию.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Scenario'
-        '401':
-          $ref: '#/components/responses/401'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: 0dddug2jrnsrq
-  '/scenarios/{id}':
+              schema: { $ref: '#/components/schemas/Scenario' }
+        '401': { $ref: '#/components/responses/401' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
+  /scenarios/{id}:
+    servers:
+      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
         required: true
-        schema:
-          type: integer
+        schema: { type: integer }
         description: ID сценария
     get:
       summary: Показать сценарий
       operationId: get-scenarios-id
-      tags:
-        - Сценарии
-      description: 'Возвращает детальную информацию о сценарии, включая его структуру.'
+      tags: [Сценарии]
+      description: Возвращает детальную информацию о сценарии, включая его структуру.
       parameters:
         - $ref: '#/components/parameters/ContentType'
         - $ref: '#/components/parameters/Accept'
@@ -1066,22 +954,15 @@ paths:
           description: Объект сценария с полной структурой.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ScenarioDetail'
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: zwtu8sh02nk5n
+              schema: { $ref: '#/components/schemas/ScenarioDetail' }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '429': { $ref: '#/components/responses/429' }
     put:
       summary: Редактировать сценарий
       operationId: put-scenarios-id
-      tags:
-        - Сценарии
-      description: 'Изменяет название, структуру или client_id сценария.'
+      tags: [Сценарии]
+      description: Изменяет название, структуру или client_id сценария.
       parameters:
         - $ref: '#/components/parameters/ContentType'
         - $ref: '#/components/parameters/Accept'
@@ -1091,39 +972,24 @@ paths:
             schema:
               type: object
               properties:
-                name:
-                  type: string
-                  minLength: 1
-                  maxLength: 40
-                data:
-                  type: string
-                client_id:
-                  type: string
-                  maxLength: 60
+                name: { type: string, minLength: 1, maxLength: 40 }
+                data: { type: string }
+                client_id: { type: string, maxLength: 60 }
       responses:
         '200':
           description: Обновлённый объект сценария.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ScenarioDetail'
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: b6829aldm9a0e
+              schema: { $ref: '#/components/schemas/ScenarioDetail' }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
     delete:
       summary: Удалить сценарий
       operationId: delete-scenarios-id
-      tags:
-        - Сценарии
+      tags: [Сценарии]
       description: Удаляет сценарий из аккаунта.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -1131,24 +997,23 @@ paths:
       responses:
         '204':
           description: Сценарий удалён.
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: 5mcpq6cgtizm4
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
+  # ─────────────────────────────────────────
+  # ОБЗВОНЫ
+  # ─────────────────────────────────────────
+
   /autocalls:
+    servers:
+      - url: https://autocall.kz/api/v1
     get:
       summary: Получить все обзвоны
       operationId: get-autocalls
-      tags:
-        - Обзвоны
+      tags: [Обзвоны]
       description: |
         Возвращает все обзвоны аккаунта с постраничным выводом.
 
@@ -1182,17 +1047,13 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/AutocallSummary'
-        '401':
-          $ref: '#/components/responses/401'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: 2brw2h0295t9f
+        '401': { $ref: '#/components/responses/401' }
+        '429': { $ref: '#/components/responses/429' }
+
     post:
       summary: Создать обзвон
       operationId: post-autocalls
-      tags:
-        - Обзвоны
+      tags: [Обзвоны]
       description: |
         Создаёт новый обзвон. Поддерживает два типа:
         - `regular` — обычный обзвон с аудиозаписью
@@ -1216,77 +1077,68 @@ paths:
             examples:
               Обычный обзвон:
                 value:
-                  name: Уведомление об акции
+                  name: "Уведомление об акции"
                   type: regular
-                  time_from: '10:00:00'
-                  time_to: '20:00:00'
-                  audio_id:
-                    - 5
-                  list_id:
-                    - 10
+                  time_from: "10:00:00"
+                  time_to: "20:00:00"
+                  audio_id: [5]
+                  list_id: [10]
               Интерактивный обзвон:
                 value:
-                  name: Опрос удовлетворённости
+                  name: "Опрос удовлетворённости"
                   type: interactive
-                  time_from: '10:00:00'
-                  time_to: '18:00:00'
+                  time_from: "10:00:00"
+                  time_to: "18:00:00"
                   scenario_id: 512
-                  list_id:
-                    - 15
+                  list_id: [15]
                   max_tries: 3
                   tries_interval: 60
                   record: true
-                  callback_url: 'https://example.com/reports'
+                  callback_url: "https://example.com/reports"
               С новыми номерами и синтезом:
                 value:
-                  name: Код подтверждения
+                  name: "Код подтверждения"
                   type: regular
-                  time_from: '00:00:00'
-                  time_to: '23:59:59'
+                  time_from: "00:00:00"
+                  time_to: "23:59:59"
                   audio_id:
                     - type: synthesis
                       data:
-                        text: 'Ваш код подтверждения: 3, 0, 7, 5.'
+                        text: "Ваш код подтверждения: 3, 0, 7, 5."
                   list_id:
-                    - number: '+77010000001'
+                    - number: "+77010000001"
                   sms_unanswered: true
-                  text_unanswered: 'Ваш код: 3075'
+                  text_unanswered: "Ваш код: 3075"
       responses:
         '201':
           description: Обзвон создан (до 5000 номеров).
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/AutocallDetail'
+              schema: { $ref: '#/components/schemas/AutocallDetail' }
         '202':
-          description: 'Обзвон принят в обработку (более 5000 номеров, создаётся в фоне).'
-        '401':
-          $ref: '#/components/responses/401'
+          description: Обзвон принят в обработку (более 5000 номеров, создаётся в фоне).
+        '401': { $ref: '#/components/responses/401' }
         '403':
           description: Обзвон отклонён из-за подозрения в спаме (слишком много номеров с короткой аудиозаписью).
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ValidationError'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: w46sha0p07zxt
-  '/autocalls/{id}':
+              schema: { $ref: '#/components/schemas/ValidationError' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+
+  /autocalls/{id}:
+    servers:
+      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
         required: true
-        schema:
-          type: integer
+        schema: { type: integer }
         description: ID обзвона
     get:
       summary: Показать обзвон
       operationId: get-autocalls-id
-      tags:
-        - Обзвоны
+      tags: [Обзвоны]
       description: |
         Возвращает детальную информацию об обзвоне, включая статистику и постраничный список всех звонков.
 
@@ -1309,21 +1161,14 @@ paths:
           description: Детальный объект обзвона со статистикой и звонками.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/AutocallDetail'
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: c7f775iq1v0wl
+              schema: { $ref: '#/components/schemas/AutocallDetail' }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '429': { $ref: '#/components/responses/429' }
     put:
       summary: Редактировать обзвон
       operationId: put-autocalls-id
-      tags:
-        - Обзвоны
+      tags: [Обзвоны]
       description: |
         Изменяет параметры обзвона. Доступно только для обзвонов в статусах `awaiting` и `moderation`.
         Редактируются только перечисленные ниже поля.
@@ -1336,59 +1181,30 @@ paths:
             schema:
               type: object
               properties:
-                name:
-                  type: string
-                  minLength: 1
-                  maxLength: 40
-                time_from:
-                  type: string
-                  minLength: 8
-                  maxLength: 8
-                time_to:
-                  type: string
-                  minLength: 8
-                  maxLength: 8
+                name: { type: string, minLength: 1, maxLength: 40 }
+                time_from: { type: string, minLength: 8, maxLength: 8 }
+                time_to: { type: string, minLength: 8, maxLength: 8 }
                 tries_interval:
                   type: integer
-                  enum:
-                    - 15
-                    - 30
-                    - 60
-                    - 120
-                date_from:
-                  type: string
-                  minLength: 10
-                  maxLength: 10
-                client_id:
-                  type: string
-                  maxLength: 60
-                callback_url:
-                  type: string
-                  maxLength: 256
+                  enum: [15, 30, 60, 120]
+                date_from: { type: string, minLength: 10, maxLength: 10 }
+                client_id: { type: string, maxLength: 60 }
+                callback_url: { type: string, maxLength: 256 }
       responses:
         '200':
           description: Обновлённый объект обзвона.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/AutocallDetail'
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: jnnybf8nejh7c
+              schema: { $ref: '#/components/schemas/AutocallDetail' }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
     delete:
       summary: Удалить обзвон
       operationId: delete-autocalls-id
-      tags:
-        - Обзвоны
+      tags: [Обзвоны]
       description: Удаляет обзвон. Нельзя удалить обзвон в статусе `running`.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -1396,25 +1212,20 @@ paths:
       responses:
         '204':
           description: Обзвон удалён.
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: 4ldrlfy7soupe
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
   /autocalls/calculate:
+    servers:
+      - url: https://autocall.kz/api/v1
     post:
       summary: Узнать стоимость обзвона
       operationId: post-autocalls-calculate
-      tags:
-        - Обзвоны
-      description: 'Рассчитывает максимальную стоимость обзвона до его создания. Принимает те же параметры, что и создание обзвона.'
+      tags: [Обзвоны]
+      description: Рассчитывает максимальную стоимость обзвона до его создания. Принимает те же параметры, что и создание обзвона.
       parameters:
         - $ref: '#/components/parameters/ContentType'
         - $ref: '#/components/parameters/Accept'
@@ -1422,8 +1233,7 @@ paths:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/AutocallCreate'
+            schema: { $ref: '#/components/schemas/AutocallCreate' }
       responses:
         '201':
           description: Максимальная стоимость обзвона.
@@ -1431,40 +1241,33 @@ paths:
             application/json:
               schema:
                 type: object
-                required:
-                  - max_cost
+                required: [max_cost]
                 properties:
-                  max_cost:
-                    type: number
+                  max_cost: { type: number }
               example:
-                max_cost: 245.6
-        '401':
-          $ref: '#/components/responses/401'
+                max_cost: 245.60
+        '401': { $ref: '#/components/responses/401' }
         '403':
           description: Обзвон отклонён из-за подозрения в спаме.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ValidationError'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: jhzt8oanueix6
-  '/autocalls/relaunch/{id}':
+              schema: { $ref: '#/components/schemas/ValidationError' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+
+  /autocalls/relaunch/{id}:
+    servers:
+      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
         required: true
-        schema:
-          type: integer
+        schema: { type: integer }
         description: ID завершённого обзвона
     get:
       summary: Перезапустить обзвон
       operationId: get-autocalls-relaunch-id
-      tags:
-        - Обзвоны
+      tags: [Обзвоны]
       description: |
         Создаёт новый список контактов из номеров завершённого обзвона, которые **не были успешно обзвонены**.
         Удобно для повторного обзвона недозвонившихся.
@@ -1479,57 +1282,37 @@ paths:
             application/json:
               schema:
                 type: object
-                required:
-                  - id
-                  - name
-                  - updated_at
-                  - created_at
-                  - used
-                  - contacts_count
-                  - importing
+                required: [id, name, updated_at, created_at, used, contacts_count, importing]
                 properties:
-                  id:
-                    type: integer
-                    description: ID нового списка
-                  name:
-                    type: string
-                  created_at:
-                    type: string
-                  updated_at:
-                    type: string
-                  used:
-                    type: integer
-                  contacts_count:
-                    type: integer
-                  importing:
-                    type: boolean
-        '401':
-          $ref: '#/components/responses/401'
+                  id: { type: integer, description: ID нового списка }
+                  name: { type: string }
+                  created_at: { type: string }
+                  updated_at: { type: string }
+                  used: { type: integer }
+                  contacts_count: { type: integer }
+                  importing: { type: boolean }
+        '401': { $ref: '#/components/responses/401' }
         '403':
           description: Обзвон ещё не завершён.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ValidationError'
-        '404':
-          $ref: '#/components/responses/404'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: auwru9p8ati56
-  '/calls/{id}':
+              schema: { $ref: '#/components/schemas/ValidationError' }
+        '404': { $ref: '#/components/responses/404' }
+        '429': { $ref: '#/components/responses/429' }
+
+  /calls/{id}:
+    servers:
+      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
         required: true
-        schema:
-          type: integer
+        schema: { type: integer }
         description: ID звонка
     get:
       summary: Показать звонок
       operationId: get-calls-id
-      tags:
-        - Обзвоны
+      tags: [Обзвоны]
       description: Возвращает детальную информацию о конкретном звонке по его ID.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -1539,29 +1322,24 @@ paths:
           description: Объект звонка.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Call'
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: jedbx9h97qvwa
-  '/calls/recordings/{id}':
+              schema: { $ref: '#/components/schemas/Call' }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '429': { $ref: '#/components/responses/429' }
+
+  /calls/recordings/{id}:
+    servers:
+      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
         required: true
-        schema:
-          type: integer
+        schema: { type: integer }
         description: ID звонка
     get:
       summary: Скачать запись разговора
       operationId: get-calls-recordings-id
-      tags:
-        - Обзвоны
+      tags: [Обзвоны]
       description: |
         Возвращает аудиофайл записи разговора для указанного звонка.
         Записи доступны только если при создании обзвона был указан параметр `record: true`.
@@ -1571,20 +1349,21 @@ paths:
       responses:
         '200':
           description: Аудиофайл записи разговора (бинарный контент).
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: 8agp6ystnkjgu
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '429': { $ref: '#/components/responses/429' }
+
+  # ─────────────────────────────────────────
+  # SMS РАССЫЛКИ
+  # ─────────────────────────────────────────
+
   /bulks:
+    servers:
+      - url: https://autocall.kz/api/v1
     get:
       summary: Получить все рассылки
       operationId: get-bulks
-      tags:
-        - SMS рассылки
+      tags: [SMS рассылки]
       description: Возвращает все SMS рассылки аккаунта с постраничным выводом.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -1608,17 +1387,13 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/BulkSummary'
-        '401':
-          $ref: '#/components/responses/401'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: frywthyvpebj7
+        '401': { $ref: '#/components/responses/401' }
+        '429': { $ref: '#/components/responses/429' }
+
     post:
       summary: Создать рассылку
       operationId: post-bulks
-      tags:
-        - SMS рассылки
+      tags: [SMS рассылки]
       description: |
         Создаёт новую SMS рассылку.
         В `list_id` можно передавать ID существующих списков или объекты с номерами напрямую (максимум 5000).
@@ -1633,10 +1408,7 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - name
-                - text
-                - list_id
+              required: [name, text, list_id]
               properties:
                 name:
                   type: string
@@ -1658,26 +1430,20 @@ paths:
                       - type: integer
                         description: ID существующего списка
                       - type: object
-                        required:
-                          - number
+                        required: [number]
                         properties:
-                          number:
-                            type: string
-                            minLength: 12
-                            maxLength: 12
-                          extra:
-                            type: string
-                            maxLength: 60
+                          number: { type: string, minLength: 12, maxLength: 12 }
+                          extra: { type: string, maxLength: 60 }
                 date_from:
                   type: string
                   minLength: 10
                   maxLength: 10
-                  description: 'День запуска в формате Y-m-d (по умолчанию: сегодня)'
+                  description: "День запуска в формате Y-m-d (по умолчанию: сегодня)"
                 time_from:
                   type: string
                   minLength: 8
                   maxLength: 8
-                  description: 'Время запуска в формате H:i:s (по умолчанию: сейчас)'
+                  description: "Время запуска в формате H:i:s (по умолчанию: сейчас)"
                 client_id:
                   type: string
                   maxLength: 60
@@ -1687,43 +1453,35 @@ paths:
                   maxLength: 256
                   description: URL для доставки отчётов о рассылке и сообщениях
             example:
-              name: Акция — ноябрь
-              text: 'Скидка 20% только сегодня! Промокод: SALE20'
-              list_id:
-                - 10
-                - 15
-              time_from: '10:00:00'
-              callback_url: 'https://example.com/sms-reports'
+              name: "Акция — ноябрь"
+              text: "Скидка 20% только сегодня! Промокод: SALE20"
+              list_id: [10, 15]
+              time_from: "10:00:00"
+              callback_url: "https://example.com/sms-reports"
       responses:
         '201':
           description: Рассылка создана.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/BulkDetail'
-        '401':
-          $ref: '#/components/responses/401'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: hyforzp93vc90
-  '/bulks/{id}':
+              schema: { $ref: '#/components/schemas/BulkDetail' }
+        '401': { $ref: '#/components/responses/401' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
+  /bulks/{id}:
+    servers:
+      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
         required: true
-        schema:
-          type: integer
+        schema: { type: integer }
         description: ID рассылки
     get:
       summary: Показать рассылку
       operationId: get-bulks-id
-      tags:
-        - SMS рассылки
+      tags: [SMS рассылки]
       description: Возвращает детальную информацию о рассылке и постраничный список всех сообщений.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -1734,21 +1492,14 @@ paths:
           description: Детальный объект рассылки.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/BulkDetail'
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: xro4afpjbvgob
+              schema: { $ref: '#/components/schemas/BulkDetail' }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '429': { $ref: '#/components/responses/429' }
     put:
       summary: Редактировать рассылку
       operationId: put-bulks-id
-      tags:
-        - SMS рассылки
+      tags: [SMS рассылки]
       description: Изменяет параметры рассылки. Доступно только для рассылок в статусах `awaiting` и `moderation`.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -1759,48 +1510,26 @@ paths:
             schema:
               type: object
               properties:
-                name:
-                  type: string
-                  minLength: 1
-                  maxLength: 40
-                time_from:
-                  type: string
-                  minLength: 8
-                  maxLength: 8
-                date_from:
-                  type: string
-                  minLength: 10
-                  maxLength: 10
-                client_id:
-                  type: string
-                  maxLength: 60
-                callback_url:
-                  type: string
-                  maxLength: 256
+                name: { type: string, minLength: 1, maxLength: 40 }
+                time_from: { type: string, minLength: 8, maxLength: 8 }
+                date_from: { type: string, minLength: 10, maxLength: 10 }
+                client_id: { type: string, maxLength: 60 }
+                callback_url: { type: string, maxLength: 256 }
       responses:
         '200':
           description: Обновлённый объект рассылки.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/BulkDetail'
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: k6wnd4agi1gha
+              schema: { $ref: '#/components/schemas/BulkDetail' }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
     delete:
       summary: Удалить рассылку
       operationId: delete-bulks-id
-      tags:
-        - SMS рассылки
+      tags: [SMS рассылки]
       description: Удаляет рассылку. Нельзя удалить рассылку в статусе `running`.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -1808,25 +1537,20 @@ paths:
       responses:
         '204':
           description: Рассылка удалена.
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: 9pkhfwj9cgqxc
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
   /bulks/calculate:
+    servers:
+      - url: https://autocall.kz/api/v1
     post:
       summary: Узнать стоимость рассылки
       operationId: post-bulks-calculate
-      tags:
-        - SMS рассылки
-      description: 'Рассчитывает максимальную стоимость рассылки до её создания. Принимает те же параметры, что и создание рассылки.'
+      tags: [SMS рассылки]
+      description: Рассчитывает максимальную стоимость рассылки до её создания. Принимает те же параметры, что и создание рассылки.
       parameters:
         - $ref: '#/components/parameters/ContentType'
         - $ref: '#/components/parameters/Accept'
@@ -1836,19 +1560,10 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - name
-                - text
-                - list_id
+              required: [name, text, list_id]
               properties:
-                name:
-                  type: string
-                  minLength: 1
-                  maxLength: 40
-                text:
-                  type: string
-                  minLength: 1
-                  maxLength: 1600
+                name: { type: string, minLength: 1, maxLength: 40 }
+                text: { type: string, minLength: 1, maxLength: 1600 }
                 list_id:
                   type: array
                   minItems: 1
@@ -1857,30 +1572,14 @@ paths:
                     oneOf:
                       - type: integer
                       - type: object
-                        required:
-                          - number
+                        required: [number]
                         properties:
-                          number:
-                            type: string
-                            minLength: 12
-                            maxLength: 12
-                          extra:
-                            type: string
-                            maxLength: 60
-                date_from:
-                  type: string
-                  minLength: 10
-                  maxLength: 10
-                time_from:
-                  type: string
-                  minLength: 8
-                  maxLength: 8
-                client_id:
-                  type: string
-                  maxLength: 60
-                callback_url:
-                  type: string
-                  maxLength: 256
+                          number: { type: string, minLength: 12, maxLength: 12 }
+                          extra: { type: string, maxLength: 60 }
+                date_from: { type: string, minLength: 10, maxLength: 10 }
+                time_from: { type: string, minLength: 8, maxLength: 8 }
+                client_id: { type: string, maxLength: 60 }
+                callback_url: { type: string, maxLength: 256 }
       responses:
         '201':
           description: Максимальная стоимость рассылки.
@@ -1889,33 +1588,27 @@ paths:
               schema:
                 type: object
                 properties:
-                  max_cost:
-                    type: number
+                  max_cost: { type: number }
               example:
-                max_cost: 120
-        '401':
-          $ref: '#/components/responses/401'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: e2yyzhi7i8tnx
-  '/messages/{id}':
+                max_cost: 120.00
+        '401': { $ref: '#/components/responses/401' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
+  /messages/{id}:
+    servers:
+      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
         required: true
-        schema:
-          type: string
+        schema: { type: string }
         description: ID сообщения
     get:
       summary: Показать сообщение
       operationId: get-messages-id
-      tags:
-        - SMS рассылки
+      tags: [SMS рассылки]
       description: Возвращает детальную информацию о конкретном SMS сообщении.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -1925,23 +1618,23 @@ paths:
           description: Объект сообщения.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Message'
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: z0ao5zk6k9c0u
+              schema: { $ref: '#/components/schemas/Message' }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '429': { $ref: '#/components/responses/429' }
+
+  # ─────────────────────────────────────────
+  # НАСТРОЙКИ
+  # ─────────────────────────────────────────
+
   /settings:
+    servers:
+      - url: https://autocall.kz/api/v1
     get:
       summary: Получить настройки аккаунта
       operationId: get-settings
-      tags:
-        - Настройки
-      description: 'Возвращает текущие настройки аккаунта, тарифы, подтверждённые номера и общую статистику.'
+      tags: [Настройки]
+      description: Возвращает текущие настройки аккаунта, тарифы, подтверждённые номера и общую статистику.
       parameters:
         - $ref: '#/components/parameters/ContentType'
         - $ref: '#/components/parameters/Accept'
@@ -1950,25 +1643,20 @@ paths:
           description: Объект с настройками аккаунта.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/AccountSettings'
-        '401':
-          $ref: '#/components/responses/401'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: hpxkqpmb9q4k5
+              schema: { $ref: '#/components/schemas/AccountSettings' }
+        '401': { $ref: '#/components/responses/401' }
+        '429': { $ref: '#/components/responses/429' }
+
     put:
       summary: Редактировать настройки
       operationId: put-settings
-      tags:
-        - Настройки
-      description: 'Изменяет имя, подписки и визитную карточку аккаунта.'
+      tags: [Настройки]
+      description: Изменяет имя, подписки и визитную карточку аккаунта.
       parameters:
         - $ref: '#/components/parameters/ContentType'
         - $ref: '#/components/parameters/Accept'
       requestBody:
-        description: 'Отправьте только те поля, которые нужно изменить.'
+        description: Отправьте только те поля, которые нужно изменить.
         content:
           application/json:
             schema:
@@ -1993,43 +1681,36 @@ paths:
                   maxLength: 160
                   description: Текст SMS визитной карточки (до 1 SMS)
             example:
-              name: Жандос
+              name: "Жандос"
               subscribe: true
               notifications_subscribe: false
-              visit_card_text: 'Компания AutoCall.kz, тел: +77470000000'
+              visit_card_text: "Компания AutoCall.kz, тел: +77470000000"
       responses:
         '200':
           description: Обновлённые настройки аккаунта.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/AccountSettings'
-        '401':
-          $ref: '#/components/responses/401'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: uv3wkqlrfmadb
-  '/settings/{visit_card_type}':
+              schema: { $ref: '#/components/schemas/AccountSettings' }
+        '401': { $ref: '#/components/responses/401' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
+  /settings/{visit_card_type}:
+    servers:
+      - url: https://autocall.kz/api/v1
     parameters:
       - name: visit_card_type
         in: path
         required: true
         schema:
           type: string
-          enum:
-            - visit_card_audio
-            - visit_card_text
+          enum: [visit_card_audio, visit_card_text]
         description: Тип визитной карточки
     delete:
       summary: Удалить визитную карточку
       operationId: delete-settings-visit-card
-      tags:
-        - Настройки
+      tags: [Настройки]
       description: Удаляет аудио или текстовую визитную карточку аккаунта.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -2037,23 +1718,19 @@ paths:
       responses:
         '204':
           description: Визитная карточка удалена.
-        '401':
-          $ref: '#/components/responses/401'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: c9srvin6olaax
+        '401': { $ref: '#/components/responses/401' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
   /settings/confirmed_numbers:
+    servers:
+      - url: https://autocall.kz/api/v1
     get:
       summary: Получить подтверждённые номера
       operationId: get-settings-confirmed-numbers
-      tags:
-        - Настройки
-      description: 'Возвращает все номера телефонов, добавленные в аккаунт.'
+      tags: [Настройки]
+      description: Возвращает все номера телефонов, добавленные в аккаунт.
       parameters:
         - $ref: '#/components/parameters/ContentType'
         - $ref: '#/components/parameters/Accept'
@@ -2068,26 +1745,22 @@ paths:
                   $ref: '#/components/schemas/ConfirmedNumber'
               example:
                 - id: 1
-                  number: '+77010000001'
-                  verified_at: '2019-12-08 23:46:06'
-                  created_at: '2019-12-08 23:46:06'
-                  updated_at: '2019-12-08 23:46:06'
+                  number: "+77010000001"
+                  verified_at: "2019-12-08 23:46:06"
+                  created_at: "2019-12-08 23:46:06"
+                  updated_at: "2019-12-08 23:46:06"
                 - id: 3
-                  number: '+77010000002'
+                  number: "+77010000002"
                   verified_at: null
-                  created_at: '2024-03-19 17:10:27'
-                  updated_at: '2024-03-19 17:10:27'
-        '401':
-          $ref: '#/components/responses/401'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: uxnuoqvwzvuwu
+                  created_at: "2024-03-19 17:10:27"
+                  updated_at: "2024-03-19 17:10:27"
+        '401': { $ref: '#/components/responses/401' }
+        '429': { $ref: '#/components/responses/429' }
+
     post:
       summary: Добавить или подтвердить номер
       operationId: post-settings-confirmed-numbers
-      tags:
-        - Настройки
+      tags: [Настройки]
       description: |
         Двухшаговый процесс:
         1. Отправьте `number` — система позвонит на этот номер, последние 5 цифр номера звонящего = код подтверждения
@@ -2108,7 +1781,7 @@ paths:
                   minLength: 12
                   maxLength: 12
                   pattern: '^\+7(700|701|702|705|707|708|747|771|775|776|777|778)\d{7}$'
-                  example: '+77020000001'
+                  example: "+77020000001"
                   description: Номер для добавления (шаг 1)
                 verification_code:
                   type: integer
@@ -2118,7 +1791,7 @@ paths:
             examples:
               Шаг 1 — добавить номер:
                 value:
-                  number: '+77020000001'
+                  number: "+77020000001"
               Шаг 2 — подтвердить:
                 value:
                   verification_code: 30756
@@ -2127,24 +1800,23 @@ paths:
           description: Номер добавлен (шаг 1) или подтверждён (шаг 2).
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ConfirmedNumber'
-        '401':
-          $ref: '#/components/responses/401'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: uffo2svtoknzc
+              schema: { $ref: '#/components/schemas/ConfirmedNumber' }
+        '401': { $ref: '#/components/responses/401' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
+  # ─────────────────────────────────────────
+  # ПЛАТЕЖИ
+  # ─────────────────────────────────────────
+
   /balance:
+    servers:
+      - url: https://autocall.kz/api/v1
     get:
       summary: Получить баланс
       operationId: get-balance
-      tags:
-        - Платежи
+      tags: [Платежи]
       description: Возвращает текущий баланс аккаунта.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -2156,9 +1828,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required:
-                  - balance
-                  - currency
+                required: [balance, currency]
                 properties:
                   balance:
                     type: number
@@ -2168,19 +1838,17 @@ paths:
                     description: Символ валюты
               example:
                 balance: 1450.75
-                currency: ₸
-        '401':
-          $ref: '#/components/responses/401'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: c4a26xyd047vu
+                currency: "₸"
+        '401': { $ref: '#/components/responses/401' }
+        '429': { $ref: '#/components/responses/429' }
+
   /payments:
+    servers:
+      - url: https://autocall.kz/api/v1
     get:
       summary: Получить транзакции
       operationId: get-payments
-      tags:
-        - Платежи
+      tags: [Платежи]
       description: Возвращает полную информацию о балансе и историю транзакций с постраничным выводом.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -2193,35 +1861,15 @@ paths:
             application/json:
               schema:
                 type: object
-                required:
-                  - balance
-                  - currency
-                  - reserved
-                  - incoming
-                  - outgoing
-                  - paid
-                  - used
-                  - transactions
+                required: [balance, currency, reserved, incoming, outgoing, paid, used, transactions]
                 properties:
-                  balance:
-                    type: number
-                  currency:
-                    type: string
-                  reserved:
-                    type: number
-                    description: Замороженная сумма
-                  incoming:
-                    type: number
-                    description: Обороты по приходу
-                  outgoing:
-                    type: number
-                    description: Обороты по расходу
-                  paid:
-                    type: number
-                    description: Всего пополнено
-                  used:
-                    type: number
-                    description: Всего израсходовано
+                  balance: { type: number }
+                  currency: { type: string }
+                  reserved: { type: number, description: Замороженная сумма }
+                  incoming: { type: number, description: Обороты по приходу }
+                  outgoing: { type: number, description: Обороты по расходу }
+                  paid: { type: number, description: Всего пополнено }
+                  used: { type: number, description: Всего израсходовано }
                   transactions:
                     allOf:
                       - $ref: '#/components/schemas/Pagination'
@@ -2231,17 +1879,13 @@ paths:
                             type: array
                             items:
                               $ref: '#/components/schemas/Transaction'
-        '401':
-          $ref: '#/components/responses/401'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: bkwpq1eh3r7jr
+        '401': { $ref: '#/components/responses/401' }
+        '429': { $ref: '#/components/responses/429' }
+
     post:
       summary: Пополнить баланс
       operationId: post-payments
-      tags:
-        - Платежи
+      tags: [Платежи]
       description: Создаёт платёжную сессию и возвращает ссылку на оплату через VISA/MASTERCARD. Минимальная сумма — 200 тенге.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -2252,8 +1896,7 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - amount
+              required: [amount]
               properties:
                 amount:
                   type: integer
@@ -2268,31 +1911,30 @@ paths:
             application/json:
               schema:
                 type: object
-                required:
-                  - payment_url
+                required: [payment_url]
                 properties:
                   payment_url:
                     type: string
                     description: URL страницы оплаты
               example:
-                payment_url: 'https://3ds.kassanova.kz/payment/merchants/kassanova/payment.html?mdOrder=b5f7a05f&language=ru'
-        '401':
-          $ref: '#/components/responses/401'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: m0ovuy3i5xnw6
+                payment_url: "https://3ds.kassanova.kz/payment/merchants/kassanova/payment.html?mdOrder=b5f7a05f&language=ru"
+        '401': { $ref: '#/components/responses/401' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
+  # ─────────────────────────────────────────
+  # ПАНЕЛЬ МОНИТОРИНГА
+  # ─────────────────────────────────────────
+
   /dashboard:
+    servers:
+      - url: https://autocall.kz/api/v1
     get:
       summary: Получить данные панели мониторинга
       operationId: get-dashboard
-      tags:
-        - Панель мониторинга
-      description: 'Возвращает сводные данные аккаунта — активные обзвоны, баланс, статистику за неделю и за всё время.'
+      tags: [Панель мониторинга]
+      description: Возвращает сводные данные аккаунта — активные обзвоны, баланс, статистику за неделю и за всё время.
       parameters:
         - $ref: '#/components/parameters/ContentType'
         - $ref: '#/components/parameters/Accept'
@@ -2303,16 +1945,9 @@ paths:
             application/json:
               schema:
                 type: object
-                required:
-                  - running&awaiting
-                  - in_queue
-                  - reserved
-                  - balance
-                  - currency
-                  - week_activity
-                  - full_activity
+                required: ["running&awaiting", in_queue, reserved, balance, currency, week_activity, full_activity]
                 properties:
-                  running&awaiting:
+                  "running&awaiting":
                     type: integer
                     description: Количество активных обзвонов (статусы running + awaiting)
                   in_queue:
@@ -2335,13 +1970,13 @@ paths:
                   full_activity:
                     $ref: '#/components/schemas/DayActivity'
               example:
-                running&awaiting: 3
+                "running&awaiting": 3
                 in_queue: 145
                 reserved: 408.83
                 balance: 1450.75
-                currency: ₸
+                currency: "₸"
                 week_activity:
-                  '2024-11-01':
+                  "2024-11-01":
                     all: 120
                     success: 85
                     recalled: 5
@@ -2357,18 +1992,20 @@ paths:
                   busy: 280
                   error: 85
                   spam: 15
-        '401':
-          $ref: '#/components/responses/401'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: 0p9bn9kv1xdlk
+        '401': { $ref: '#/components/responses/401' }
+        '429': { $ref: '#/components/responses/429' }
+
+  # ─────────────────────────────────────────
+  # УВЕДОМЛЕНИЯ
+  # ─────────────────────────────────────────
+
   /notifications:
+    servers:
+      - url: https://autocall.kz/api/v1
     get:
       summary: Получить уведомления
       operationId: get-notifications
-      tags:
-        - Уведомления
+      tags: [Уведомления]
       description: |
         Возвращает все уведомления аккаунта.
 
@@ -2402,9 +2039,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required:
-                  - data
-                  - unread
+                required: [data, unread]
                 properties:
                   data:
                     type: array
@@ -2415,42 +2050,39 @@ paths:
                     description: Количество непрочитанных уведомлений
               example:
                 data:
-                  - id: 4f227359-cbc5-4b4d-811f-e8846abe6f35
-                    type: AutocallFinished
+                  - id: "4f227359-cbc5-4b4d-811f-e8846abe6f35"
+                    type: "AutocallFinished"
                     data:
                       id: 42
-                      name: Акция ноябрь
+                      name: "Акция ноябрь"
                     read_at: null
-                    created_at: '2024-11-01 10:35:00'
-                    updated_at: '2024-11-01 10:35:00'
-                  - id: 2c2f0bac-3e80-4504-82e5-6b41d17cfbd3
-                    type: LowBalance
+                    created_at: "2024-11-01 10:35:00"
+                    updated_at: "2024-11-01 10:35:00"
+                  - id: "2c2f0bac-3e80-4504-82e5-6b41d17cfbd3"
+                    type: "LowBalance"
                     data:
-                      balance: 45.2
-                      threshold: 100
+                      balance: 45.20
+                      threshold: 100.00
                     read_at: null
-                    created_at: '2024-11-01 11:00:00'
-                    updated_at: '2024-11-01 11:00:00'
+                    created_at: "2024-11-01 11:00:00"
+                    updated_at: "2024-11-01 11:00:00"
                 unread: 2
-        '401':
-          $ref: '#/components/responses/401'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: nqaeyehx7utxk
-  '/notifications/{id}':
+        '401': { $ref: '#/components/responses/401' }
+        '429': { $ref: '#/components/responses/429' }
+
+  /notifications/{id}:
+    servers:
+      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
         required: true
-        schema:
-          type: string
+        schema: { type: string }
         description: ID уведомления (UUID)
     put:
       summary: Отметить уведомление прочитанным
       operationId: put-notifications-id
-      tags:
-        - Уведомления
+      tags: [Уведомления]
       description: Помечает уведомление как прочитанное.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -2462,30 +2094,20 @@ paths:
             application/json:
               schema:
                 type: object
-                required:
-                  - id
-                  - read_at
+                required: [id, read_at]
                 properties:
-                  id:
-                    type: string
-                  read_at:
-                    type: string
+                  id: { type: string }
+                  read_at: { type: string }
               example:
-                id: 2c2f0bac-3e80-4504-82e5-6b41d17cfbd3
-                read_at: '2024-11-01 12:00:00'
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '429':
-          $ref: '#/components/responses/429'
-      x-stoplight:
-        id: 9awk5np0x2zot
+                id: "2c2f0bac-3e80-4504-82e5-6b41d17cfbd3"
+                read_at: "2024-11-01 12:00:00"
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '429': { $ref: '#/components/responses/429' }
     delete:
       summary: Удалить уведомление
       operationId: delete-notifications-id
-      tags:
-        - Уведомления
+      tags: [Уведомления]
       description: Удаляет уведомление.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -2493,22 +2115,22 @@ paths:
       responses:
         '204':
           description: Уведомление удалено.
-        '401':
-          $ref: '#/components/responses/401'
-        '404':
-          $ref: '#/components/responses/404'
-        '429':
-          $ref: '#/components/responses/429'
-        '500':
-          $ref: '#/components/responses/500'
-      x-stoplight:
-        id: 2mc5nekr61gj8
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
+  # ─────────────────────────────────────────
+  # FLASH CALLS
+  # ─────────────────────────────────────────
+
   /flash-calls:
+    servers:
+      - url: https://autocall.kz/api/v1
     post:
       summary: Отправить Flash Call
       operationId: post-flash-calls
-      tags:
-        - Flash Calls
+      tags: [Flash Calls]
       description: |
         Совершает Flash Call на указанный номер. Последние N цифр номера звонящего — это код подтверждения.
         Звонок автоматически сбрасывается, биллинг на стороне абонента не возникает.
@@ -2531,15 +2153,14 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - number
+              required: [number]
               properties:
                 number:
                   type: string
                   minLength: 12
                   maxLength: 12
                   pattern: '^\+7(700|701|702|705|706|707|708|747|771|775|776|777|778|710|711|712|713|714|715|716|717|718|721|722|723|724|725|726|727|728|729|736)\d{7}$'
-                  example: '+77000000000'
+                  example: "+77000000000"
                   description: Номер получателя в формате +7XXXXXXXXXX
                 digits:
                   type: integer
@@ -2553,19 +2174,19 @@ paths:
                   pattern: '^\d{3,6}$'
                   minLength: 3
                   maxLength: 6
-                  example: '1234'
+                  example: "1234"
                   description: |
                     **Свой код**: числовой код от 3 до 6 цифр.
                     Обязательно если `digits` не передан.
             examples:
               Авто-код из 4 цифр:
                 value:
-                  number: '+77010000001'
+                  number: "+77010000001"
                   digits: 4
               Свой код:
                 value:
-                  number: '+77010000001'
-                  code: '7823'
+                  number: "+77010000001"
+                  code: "7823"
       responses:
         '201':
           description: Flash Call отправлен. Код подтверждения — последние N цифр поля `code`.
@@ -2573,10 +2194,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required:
-                  - id
-                  - code
-                  - number
+                required: [id, code, number]
                 properties:
                   id:
                     type: integer
@@ -2589,37 +2207,38 @@ paths:
                     description: Номер получателя
               example:
                 id: 1023
-                code: '7482'
-                number: '+77010000001'
-        '401':
-          $ref: '#/components/responses/401'
+                code: "7482"
+                number: "+77010000001"
+        '401': { $ref: '#/components/responses/401' }
         '402':
           description: Недостаточно средств на балансе.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorMessage'
+              schema: { $ref: '#/components/schemas/ErrorMessage' }
         '422':
           description: |
             Ошибка валидации: неверно заполнены поля, либо (для режима Свой код) номер с нужными цифрами недоступен.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ValidationError'
+              schema: { $ref: '#/components/schemas/ValidationError' }
         '429':
           description: Превышен rate limit — не более 3 попыток на один номер в течение 5 минут.
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorMessage'
-      x-stoplight:
-        id: sdy28zgvu41ze
+              schema: { $ref: '#/components/schemas/ErrorMessage' }
+
+# ─────────────────────────────────────────
+# КОМПОНЕНТЫ
+# ─────────────────────────────────────────
+
 components:
+
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       description: 'Заголовок: Authorization: Bearer ВАШ_API_КЛЮЧ'
+
   parameters:
     ContentType:
       name: Content-Type
@@ -2642,23 +2261,21 @@ components:
       in: query
       schema:
         type: string
-        example: '2024-01-01'
-      description: 'Фильтр: с какой даты (формат Y-m-d)'
+        example: "2024-01-01"
+      description: "Фильтр: с какой даты (формат Y-m-d)"
     DateTo:
       name: date_to
       in: query
       schema:
         type: string
-        example: '2024-12-31'
-      description: 'Фильтр: по какую дату (формат Y-m-d)'
+        example: "2024-12-31"
+      description: "Фильтр: по какую дату (формат Y-m-d)"
     Order:
       name: order
       in: query
       schema:
         type: string
-        enum:
-          - asc
-          - desc
+        enum: [asc, desc]
       description: Сортировка по дате создания
     ClientIdFilter:
       name: client_id
@@ -2673,66 +2290,59 @@ components:
         type: integer
         minimum: 1
       description: Номер страницы
+
   responses:
     '401':
       description: Не передан или недействителен API ключ.
       content:
         application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorMessage'
+          schema: { $ref: '#/components/schemas/ErrorMessage' }
           example:
-            message: Unauthenticated.
+            message: "Unauthenticated."
     '404':
       description: Ресурс не найден по указанному ID.
       content:
         application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorMessage'
+          schema: { $ref: '#/components/schemas/ErrorMessage' }
           example:
-            message: Not found.
+            message: "Not found."
     '422':
       description: Ошибка валидации — данные запроса не прошли проверку.
       content:
         application/json:
-          schema:
-            $ref: '#/components/schemas/ValidationError'
+          schema: { $ref: '#/components/schemas/ValidationError' }
           example:
-            message: The given data was invalid.
+            message: "The given data was invalid."
             errors:
-              name:
-                - Поле name обязательно.
+              name: ["Поле name обязательно."]
     '429':
       description: Превышен лимит запросов. По умолчанию — 300 запросов в минуту.
       content:
         application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorMessage'
+          schema: { $ref: '#/components/schemas/ErrorMessage' }
           example:
-            message: Too Many Attempts.
+            message: "Too Many Attempts."
     '500':
       description: Внутренняя ошибка сервера.
       content:
         application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorMessage'
+          schema: { $ref: '#/components/schemas/ErrorMessage' }
           example:
-            message: Server Error.
+            message: "Server Error."
+
   schemas:
+
     ErrorMessage:
       type: object
-      required:
-        - message
+      required: [message]
       properties:
         message:
           type: string
           description: Описание ошибки
-      x-stoplight:
-        id: ot1bkomxpi9aw
+
     ValidationError:
       type: object
-      required:
-        - message
-        - errors
+      required: [message, errors]
       properties:
         message:
           type: string
@@ -2744,17 +2354,13 @@ components:
             type: array
             items:
               type: string
-      x-stoplight:
-        id: zc9gsj6b6vsfg
+
     Tariff:
       type: object
       properties:
         name:
           type: string
-          enum:
-            - BRONZE
-            - SILVER
-            - GOLD
+          enum: [BRONZE, SILVER, GOLD]
           description: Название тарифного плана
         threshold:
           type: integer
@@ -2774,248 +2380,96 @@ components:
         recording_price:
           type: number
           description: Цена за секунду записи звонка (тенге)
-      x-stoplight:
-        id: n9liwlo0nbq00
+
     Pagination:
       type: object
       description: Стандартный объект постраничного вывода Laravel
-      required:
-        - current_page
-        - data
-        - first_page_url
-        - from
-        - last_page
-        - last_page_url
-        - next_page_url
-        - path
-        - per_page
-        - prev_page_url
-        - to
-        - total
+      required: [current_page, data, first_page_url, from, last_page, last_page_url, next_page_url, path, per_page, prev_page_url, to, total]
       properties:
-        current_page:
-          type: integer
+        current_page: { type: integer }
         data:
           type: array
           items: {}
-        first_page_url:
-          type: string
-        from:
-          type: integer
-        last_page:
-          type: integer
-        last_page_url:
-          type: string
-        next_page_url:
-          type:
-            - string
-            - 'null'
-        path:
-          type: string
-        per_page:
-          type: integer
-        prev_page_url:
-          type:
-            - string
-            - 'null'
-        to:
-          type: integer
-        total:
-          type: integer
-      x-stoplight:
-        id: bvgh3a7vmptaj
+        first_page_url: { type: string }
+        from: { type: integer }
+        last_page: { type: integer }
+        last_page_url: { type: string }
+        next_page_url: { type: [string, "null"] }
+        path: { type: string }
+        per_page: { type: integer }
+        prev_page_url: { type: [string, "null"] }
+        to: { type: integer }
+        total: { type: integer }
+
     DayActivity:
       type: object
       properties:
-        all:
-          type: integer
-          description: Всего звонков
-        success:
-          type: integer
-          description: Успешно дозвонились
-        recalled:
-          type: integer
-          description: Перезвонили сами
-        no_answer:
-          type: integer
-          description: Нет ответа
-        busy:
-          type: integer
-          description: Занято
-        error:
-          type: integer
-          description: Не существует
-        spam:
-          type: integer
-          description: Пожаловались на спам
-      x-stoplight:
-        id: d8facd3l3dqin
+        all: { type: integer, description: Всего звонков }
+        success: { type: integer, description: Успешно дозвонились }
+        recalled: { type: integer, description: Перезвонили сами }
+        no_answer: { type: integer, description: Нет ответа }
+        busy: { type: integer, description: Занято }
+        error: { type: integer, description: Не существует }
+        spam: { type: integer, description: Пожаловались на спам }
+
     Contact:
       type: object
-      required:
-        - id
-        - number
-        - extra
-        - created_at
-        - updated_at
+      required: [id, number, extra, created_at, updated_at]
       properties:
-        id:
-          type: integer
-        list_id:
-          type: integer
-        number:
-          type: string
-        extra:
-          type:
-            - string
-            - 'null'
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-      x-stoplight:
-        id: ip4vghrqasy01
+        id: { type: integer }
+        list_id: { type: integer }
+        number: { type: string }
+        extra: { type: [string, "null"] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     ContactList:
       type: object
-      required:
-        - id
-        - client_id
-        - name
-        - importing
-        - nonexistent
-        - created_at
-        - updated_at
-        - contacts_count
-        - used
+      required: [id, client_id, name, importing, nonexistent, created_at, updated_at, contacts_count, used]
       properties:
-        id:
-          type: integer
-        client_id:
-          type:
-            - string
-            - 'null'
-        name:
-          type: string
-        importing:
-          type: boolean
-          description: Идёт ли импорт прямо сейчас
+        id: { type: integer }
+        client_id: { type: [string, "null"] }
+        name: { type: string }
+        importing: { type: boolean, description: Идёт ли импорт прямо сейчас }
         nonexistent:
-          type:
-            - array
-            - 'null'
+          type: [array, "null"]
           description: Массив ID контактов с несуществующими номерами
-          items:
-            type: integer
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-        contacts_count:
-          type: integer
-        used:
-          type: integer
-          description: Сколько раз список использовался
-      x-stoplight:
-        id: 5tirq1ad9zid0
+          items: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        contacts_count: { type: integer }
+        used: { type: integer, description: Сколько раз список использовался }
+
     Sound:
       type: object
-      required:
-        - id
-        - client_id
-        - name
-        - duration
-        - confirmed
-        - comment
-        - confirmed_at
-        - created_at
-        - updated_at
-        - playback_url
-        - used
+      required: [id, client_id, name, duration, confirmed, comment, confirmed_at, created_at, updated_at, playback_url, used]
       properties:
-        id:
-          type: integer
-        client_id:
-          type:
-            - string
-            - 'null'
-        name:
-          type: string
-        duration:
-          type: integer
-          description: Длительность в секундах
-        confirmed:
-          type: boolean
-          description: Одобрена ли модераторами
-        comment:
-          type:
-            - string
-            - 'null'
-          description: Комментарий модератора
-        confirmed_at:
-          type:
-            - string
-            - 'null'
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-        playback_url:
-          type: string
-          description: URL для прослушивания/скачивания
-        used:
-          type: integer
-          description: Количество использований в обзвонах
-      x-stoplight:
-        id: f2jtxk9gian53
+        id: { type: integer }
+        client_id: { type: [string, "null"] }
+        name: { type: string }
+        duration: { type: integer, description: Длительность в секундах }
+        confirmed: { type: boolean, description: Одобрена ли модераторами }
+        comment: { type: [string, "null"], description: Комментарий модератора }
+        confirmed_at: { type: [string, "null"] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        playback_url: { type: string, description: URL для прослушивания/скачивания }
+        used: { type: integer, description: Количество использований в обзвонах }
+
     Scenario:
       type: object
-      required:
-        - id
-        - client_id
-        - name
-        - max_cost
-        - comment
-        - created_at
-        - updated_at
-        - used
+      required: [id, client_id, name, max_cost, comment, created_at, updated_at, used]
       properties:
-        id:
-          type: integer
-        client_id:
-          type:
-            - string
-            - 'null'
-        name:
-          type: string
-        max_cost:
-          type:
-            - string
-            - number
-          description: Максимальная стоимость на 1 звонок
-        comment:
-          type:
-            - string
-            - 'null'
-        confirmed_at:
-          type:
-            - string
-            - 'null'
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-        used:
-          type: integer
-      x-stoplight:
-        id: x6o97zh6fu9gl
+        id: { type: integer }
+        client_id: { type: [string, "null"] }
+        name: { type: string }
+        max_cost: { type: [string, number], description: Максимальная стоимость на 1 звонок }
+        comment: { type: [string, "null"] }
+        confirmed_at: { type: [string, "null"] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        used: { type: integer }
+
     ScenarioDetail:
       allOf:
         - $ref: '#/components/schemas/Scenario'
@@ -3024,140 +2478,61 @@ components:
             data:
               type: object
               description: Структура сценария
-      x-stoplight:
-        id: fcngyjb89vb66
+
     AutocallSummary:
       type: object
       properties:
-        id:
-          type: integer
-        client_id:
-          type:
-            - string
-            - 'null'
-        name:
-          type: string
-        date_from:
-          type: string
-        time_from:
-          type: string
-        time_to:
-          type: string
-        max_tries:
-          type: integer
-        tries_interval:
-          type: integer
+        id: { type: integer }
+        client_id: { type: [string, "null"] }
+        name: { type: string }
+        date_from: { type: string }
+        time_from: { type: string }
+        time_to: { type: string }
+        max_tries: { type: integer }
+        tries_interval: { type: integer }
         type:
           type: string
-          enum:
-            - regular
-            - interactive
+          enum: [regular, interactive]
         status:
           type: string
-          enum:
-            - running
-            - completed
-            - awaiting
-            - moderation
-            - denied
-        max_cost:
-          type:
-            - number
-            - string
-        final_cost:
-          type:
-            - number
-            - string
-            - 'null'
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-      x-stoplight:
-        id: wmmxbnlxnjy4x
+          enum: [running, completed, awaiting, moderation, denied]
+        max_cost: { type: [number, string] }
+        final_cost: { type: [number, string, "null"] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     AutocallCreate:
       type: object
-      required:
-        - name
-        - type
-        - list_id
+      required: [name, type, list_id]
       properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 40
-        time_from:
-          type: string
-          default: '12:00:00'
-          minLength: 8
-          maxLength: 8
-        time_to:
-          type: string
-          default: '18:00:00'
-          minLength: 8
-          maxLength: 8
+        name: { type: string, minLength: 1, maxLength: 40 }
+        time_from: { type: string, default: "12:00:00", minLength: 8, maxLength: 8 }
+        time_to: { type: string, default: "18:00:00", minLength: 8, maxLength: 8 }
         type:
           type: string
-          enum:
-            - regular
-            - interactive
+          enum: [regular, interactive]
           default: regular
         audio_id:
           type: array
-          description: Обязательно если type=regular. ID аудиозаписей или объекты для создания новых.
+          description: "Обязательно если type=regular. ID аудиозаписей или объекты для создания новых."
           items:
             oneOf:
               - type: integer
               - type: object
-                required:
-                  - type
-                  - data
+                required: [type, data]
                 properties:
-                  type:
-                    type: string
-                    enum:
-                      - synthesis
-                      - upload
+                  type: { type: string, enum: [synthesis, upload] }
                   data:
                     type: object
                     properties:
-                      text:
-                        type: string
-                        minLength: 1
-                        maxLength: 400
+                      text: { type: string, minLength: 1, maxLength: 400 }
                       voice:
                         type: string
-                        enum:
-                          - ru-RU-Wavenet-A
-                          - ru-RU-Wavenet-B
-                          - ru-RU-Wavenet-C
-                          - ru-RU-Wavenet-D
-                          - alyss
-                          - jane
-                          - oksana
-                          - omazh
-                          - zahar
-                          - ermil
-                          - filipp
-                          - alena
-                      speed:
-                        type: number
-                        default: 1
-                        minimum: 0.25
-                        maximum: 4
-                      pitch:
-                        type: number
-                        default: 0
-                        minimum: -20
-                        maximum: 20
-                      file:
-                        type: string
-                        description: Base64 строка файла mp3/wav/ogg
-        scenario_id:
-          type: integer
-          description: Обязательно если type=interactive.
+                        enum: [ru-RU-Wavenet-A, ru-RU-Wavenet-B, ru-RU-Wavenet-C, ru-RU-Wavenet-D, alyss, jane, oksana, omazh, zahar, ermil, filipp, alena]
+                      speed: { type: number, default: 1, minimum: 0.25, maximum: 4 }
+                      pitch: { type: number, default: 0, minimum: -20, maximum: 20 }
+                      file: { type: string, description: Base64 строка файла mp3/wav/ogg }
+        scenario_id: { type: integer, description: "Обязательно если type=interactive." }
         list_id:
           type: array
           minItems: 1
@@ -3166,143 +2541,55 @@ components:
             oneOf:
               - type: integer
               - type: object
-                required:
-                  - number
+                required: [number]
                 properties:
-                  number:
-                    type: string
-                    minLength: 12
-                    maxLength: 12
-                  extra:
-                    type: string
-                    maxLength: 30
-        max_tries:
-          type: integer
-          default: 1
-          enum:
-            - 1
-            - 2
-            - 3
-            - 4
-        tries_interval:
-          type: integer
-          default: 60
-          enum:
-            - 15
-            - 30
-            - 60
-            - 120
-        date_from:
-          type: string
-          minLength: 10
-          maxLength: 10
-        sms:
-          type: boolean
-          default: false
-          description: Отправить SMS при успешном дозвоне?
-        text:
-          type: string
-          description: Обязательно если sms=true.
-        sms_unanswered:
-          type: boolean
-          default: false
-          description: Отправить SMS если не дозвонились?
-        text_unanswered:
-          type: string
-          description: Обязательно если sms_unanswered=true.
-        lifetime:
-          type: boolean
-          default: false
-          description: Ждать перезвонивших абонентов
-        record:
-          type: boolean
-          default: false
-          description: Записывать разговоры?
-        client_id:
-          type: string
-          maxLength: 60
-        callback_url:
-          type: string
-          maxLength: 256
-      x-stoplight:
-        id: vabbyi94u2hw5
+                  number: { type: string, minLength: 12, maxLength: 12 }
+                  extra: { type: string, maxLength: 30 }
+        max_tries: { type: integer, default: 1, enum: [1, 2, 3, 4] }
+        tries_interval: { type: integer, default: 60, enum: [15, 30, 60, 120] }
+        date_from: { type: string, minLength: 10, maxLength: 10 }
+        sms: { type: boolean, default: false, description: Отправить SMS при успешном дозвоне? }
+        text: { type: string, description: "Обязательно если sms=true." }
+        sms_unanswered: { type: boolean, default: false, description: Отправить SMS если не дозвонились? }
+        text_unanswered: { type: string, description: "Обязательно если sms_unanswered=true." }
+        lifetime: { type: boolean, default: false, description: Ждать перезвонивших абонентов }
+        record: { type: boolean, default: false, description: Записывать разговоры? }
+        client_id: { type: string, maxLength: 60 }
+        callback_url: { type: string, maxLength: 256 }
+
     AutocallDetail:
       allOf:
         - $ref: '#/components/schemas/AutocallSummary'
         - type: object
           properties:
-            sms:
-              type: boolean
-            sms_unanswered:
-              type: boolean
-            text:
-              type:
-                - string
-                - 'null'
-            text_unanswered:
-              type:
-                - string
-                - 'null'
-            audio_id:
-              type:
-                - array
-                - 'null'
-              items:
-                type:
-                  - number
-                  - string
-            scenario_id:
-              type:
-                - integer
-                - 'null'
-            processed:
-              type: integer
-            speeches:
-              type: integer
-            lifetime:
-              type: boolean
-            record:
-              type: boolean
-            comment:
-              type:
-                - string
-                - 'null'
-            callback_url:
-              type:
-                - string
-                - 'null'
-            finished_at:
-              type:
-                - string
-                - 'null'
-            calls_count:
-              type: integer
-            processed_percentage:
-              type: number
+            sms: { type: boolean }
+            sms_unanswered: { type: boolean }
+            text: { type: [string, "null"] }
+            text_unanswered: { type: [string, "null"] }
+            audio_id: { type: [array, "null"], items: { type: [number, string] } }
+            scenario_id: { type: [integer, "null"] }
+            processed: { type: integer }
+            speeches: { type: integer }
+            lifetime: { type: boolean }
+            record: { type: boolean }
+            comment: { type: [string, "null"] }
+            callback_url: { type: [string, "null"] }
+            finished_at: { type: [string, "null"] }
+            calls_count: { type: integer }
+            processed_percentage: { type: number }
             counters:
               type: object
               properties:
-                success_percentage:
-                  type: number
-                success:
-                  type: integer
-                recalled:
-                  type: integer
-                no_answer:
-                  type: integer
-                busy:
-                  type: integer
-                error:
-                  type: integer
-                spam:
-                  type: integer
-                tries:
-                  type: integer
-                duration:
-                  type: integer
-                  description: Всего секунд разговора (биллинг)
-                total:
-                  type: integer
+                success_percentage: { type: number }
+                success: { type: integer }
+                recalled: { type: integer }
+                no_answer: { type: integer }
+                busy: { type: integer }
+                error: { type: integer }
+                spam: { type: integer }
+                tries: { type: integer }
+                duration: { type: integer, description: Всего секунд разговора (биллинг) }
+                total: { type: integer }
             calls:
               allOf:
                 - $ref: '#/components/schemas/Pagination'
@@ -3310,152 +2597,57 @@ components:
                   properties:
                     data:
                       type: array
-                      items:
-                        $ref: '#/components/schemas/Call'
-      x-stoplight:
-        id: 9nih6gufxfy02
+                      items: { $ref: '#/components/schemas/Call' }
+
     Call:
       type: object
-      required:
-        - id
-        - autocall_id
-        - number
-        - extra
-        - lock
-        - tries
-        - date_tries
-        - status_tries
-        - last_try_at
-        - duration
-        - r_duration
-        - status
-        - created_at
-        - updated_at
+      required: [id, autocall_id, number, extra, lock, tries, date_tries, status_tries, last_try_at, duration, r_duration, status, created_at, updated_at]
       properties:
-        id:
-          type: integer
-        autocall_id:
-          type: integer
-        number:
-          type: string
-        extra:
-          type:
-            - string
-            - 'null'
-        lock:
-          type: boolean
-          description: Идёт ли звонок прямо сейчас
-        tries:
-          type: integer
-        date_tries:
-          type:
-            - array
-            - 'null'
-          items:
-            type: string
-        status_tries:
-          type:
-            - array
-            - 'null'
-          items:
-            type: string
-        last_try_at:
-          type:
-            - string
-            - 'null'
-        duration:
-          type: integer
-          description: Длительность исходящего разговора в секундах (биллинг)
-        r_duration:
-          type: integer
-          description: Длительность входящего разговора (бесплатно)
+        id: { type: integer }
+        autocall_id: { type: integer }
+        number: { type: string }
+        extra: { type: [string, "null"] }
+        lock: { type: boolean, description: Идёт ли звонок прямо сейчас }
+        tries: { type: integer }
+        date_tries: { type: [array, "null"], items: { type: string } }
+        status_tries: { type: [array, "null"], items: { type: string } }
+        last_try_at: { type: [string, "null"] }
+        duration: { type: integer, description: Длительность исходящего разговора в секундах (биллинг) }
+        r_duration: { type: integer, description: Длительность входящего разговора (бесплатно) }
         status:
           type: string
-          enum:
-            - in_queue
-            - success
-            - recalled
-            - no_answer
-            - busy
-            - error
-            - spam
-        data:
-          type:
-            - object
-            - 'null'
-          description: Результаты прохождения сценария
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-      x-stoplight:
-        id: iqjrqcivluc0l
+          enum: [in_queue, success, recalled, no_answer, busy, error, spam]
+        data: { type: [object, "null"], description: Результаты прохождения сценария }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     BulkSummary:
       type: object
       properties:
-        id:
-          type: integer
-        client_id:
-          type:
-            - string
-            - 'null'
-        name:
-          type: string
+        id: { type: integer }
+        client_id: { type: [string, "null"] }
+        name: { type: string }
         status:
           type: string
-          enum:
-            - running
-            - completed
-            - awaiting
-            - moderation
-            - denied
-        date_from:
-          type: string
-        time_from:
-          type: string
-        text:
-          type: string
-        segments:
-          type: integer
-          description: Количество SMS сегментов
-        recipients:
-          type: integer
-        list_id:
-          type: array
-          items:
-            type: integer
-        max_cost:
-          type:
-            - string
-            - number
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-      x-stoplight:
-        id: si4z4ok7yugeg
+          enum: [running, completed, awaiting, moderation, denied]
+        date_from: { type: string }
+        time_from: { type: string }
+        text: { type: string }
+        segments: { type: integer, description: Количество SMS сегментов }
+        recipients: { type: integer }
+        list_id: { type: array, items: { type: integer } }
+        max_cost: { type: [string, number] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     BulkDetail:
       allOf:
         - $ref: '#/components/schemas/BulkSummary'
         - type: object
           properties:
-            final_cost:
-              type:
-                - string
-                - number
-                - 'null'
-            comment:
-              type:
-                - string
-                - 'null'
-            callback_url:
-              type:
-                - string
-                - 'null'
+            final_cost: { type: [string, number, "null"] }
+            comment: { type: [string, "null"] }
+            callback_url: { type: [string, "null"] }
             messages:
               allOf:
                 - $ref: '#/components/schemas/Pagination'
@@ -3463,47 +2655,19 @@ components:
                   properties:
                     data:
                       type: array
-                      items:
-                        $ref: '#/components/schemas/Message'
-      x-stoplight:
-        id: ax0owoatotyfd
+                      items: { $ref: '#/components/schemas/Message' }
+
     Message:
       type: object
-      required:
-        - id
-        - bulk_id
-        - number
-        - extra
-        - status
-        - provider
-        - init_time
-        - status_time
-        - created_at
-        - updated_at
+      required: [id, bulk_id, number, extra, status, provider, init_time, status_time, created_at, updated_at]
       properties:
-        id:
-          type: integer
-        bulk_id:
-          type: integer
-        number:
-          type: string
-        extra:
-          type:
-            - string
-            - 'null'
+        id: { type: integer }
+        bulk_id: { type: integer }
+        number: { type: string }
+        extra: { type: [string, "null"] }
         status:
           type: string
-          enum:
-            - queued
-            - disabled
-            - new
-            - sent
-            - delivered
-            - pending
-            - failed
-            - expired
-            - undeliverable
-            - rejected
+          enum: [queued, disabled, new, sent, delivered, pending, failed, expired, undeliverable, rejected]
           description: |
             | Статус | Значение | Окончательный |
             |--------|----------|---------------|
@@ -3517,180 +2681,84 @@ components:
             | `undeliverable` | не доставлено | да |
             | `rejected` | отклонено оператором | да |
             | `disabled` | удалено | да |
-        provider:
-          type: string
-          description: Мобильный оператор получателя
-        init_time:
-          type:
-            - string
-            - 'null'
-          description: Дата отправки
-        status_time:
-          type:
-            - string
-            - 'null'
-          description: Дата последнего изменения статуса
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-      x-stoplight:
-        id: skyemri55orii
+        provider: { type: string, description: Мобильный оператор получателя }
+        init_time: { type: [string, "null"], description: Дата отправки }
+        status_time: { type: [string, "null"], description: Дата последнего изменения статуса }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     ConfirmedNumber:
       type: object
-      required:
-        - id
-        - number
-        - verified_at
-        - created_at
-        - updated_at
+      required: [id, number, verified_at, created_at, updated_at]
       properties:
-        id:
-          type: integer
-        number:
-          type: string
-          description: Номер в формате +7XXXXXXXXXX
+        id: { type: integer }
+        number: { type: string, description: Номер в формате +7XXXXXXXXXX }
         verified_at:
-          type:
-            - string
-            - 'null'
+          type: [string, "null"]
           description: Дата подтверждения. Неподтверждённые удаляются через 10 минут.
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-      x-stoplight:
-        id: 0ww2fs5c6bnby
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     AccountSettings:
       type: object
       properties:
-        name:
-          type: string
-        phone:
-          type: string
-          description: Номер телефона без +7
-        sms_verified_at:
-          type: string
-        moderation:
-          type: boolean
-          description: Включена ли модерация
-        time_from:
-          type: string
-          description: С какого времени разрешены рассылки/обзвоны
-        time_to:
-          type: string
-          description: До какого времени разрешены рассылки/обзвоны
-        price:
-          type: string
-          description: Тариф — стоимость за секунду обзвона (₸)
-        sms_price:
-          type: string
-          description: Тариф — стоимость одного SMS (₸)
-        sip_price:
-          type: string
-          description: Тариф — стоимость за секунду через АТС (₸)
-        speech_price:
-          type: string
-          description: Тариф — стоимость распознавания речи за сеанс (₸)
-        synthesis_price:
-          type: string
-          description: Тариф — стоимость синтеза речи за сеанс (₸)
-        recording_price:
-          type: string
-          description: Тариф — стоимость записи разговора (₸)
-        recalled:
-          type: integer
-          description: Часов отслеживания перезвонивших абонентов
-        subscribe:
-          type: boolean
-          description: Подписка на новости через звонки
-        notifications_subscribe:
-          type: boolean
-          description: Дублирование уведомлений через SMS
-        visit_card_audio:
-          type:
-            - integer
-            - 'null'
-        visit_card_text:
-          type:
-            - string
-            - 'null'
+        name: { type: string }
+        phone: { type: string, description: Номер телефона без +7 }
+        sms_verified_at: { type: string }
+        moderation: { type: boolean, description: Включена ли модерация }
+        time_from: { type: string, description: С какого времени разрешены рассылки/обзвоны }
+        time_to: { type: string, description: До какого времени разрешены рассылки/обзвоны }
+        price: { type: string, description: Тариф — стоимость за секунду обзвона (₸) }
+        sms_price: { type: string, description: Тариф — стоимость одного SMS (₸) }
+        sip_price: { type: string, description: Тариф — стоимость за секунду через АТС (₸) }
+        speech_price: { type: string, description: Тариф — стоимость распознавания речи за сеанс (₸) }
+        synthesis_price: { type: string, description: Тариф — стоимость синтеза речи за сеанс (₸) }
+        recording_price: { type: string, description: Тариф — стоимость записи разговора (₸) }
+        recalled: { type: integer, description: Часов отслеживания перезвонивших абонентов }
+        subscribe: { type: boolean, description: Подписка на новости через звонки }
+        notifications_subscribe: { type: boolean, description: Дублирование уведомлений через SMS }
+        visit_card_audio: { type: [integer, "null"] }
+        visit_card_text: { type: [string, "null"] }
         confirmed_numbers:
           type: array
-          items:
-            $ref: '#/components/schemas/ConfirmedNumber'
+          items: { $ref: '#/components/schemas/ConfirmedNumber' }
         statistics:
           type: object
           properties:
-            duration:
-              type: integer
-              description: Всего секунд разговоров
-            calls:
-              type:
-                - number
-                - string
-              description: Всего звонков
-            confirmed_numbers:
-              type: integer
-            spam_reports:
-              type: integer
-            lists:
-              type: integer
-            contacts:
-              type: integer
-            autocalls:
-              type: integer
-            bulks:
-              type: integer
-            sms:
-              type: integer
-      x-stoplight:
-        id: sm9fs3alb92n5
+            duration: { type: integer, description: Всего секунд разговоров }
+            calls: { type: [number, string], description: Всего звонков }
+            confirmed_numbers: { type: integer }
+            spam_reports: { type: integer }
+            lists: { type: integer }
+            contacts: { type: integer }
+            autocalls: { type: integer }
+            bulks: { type: integer }
+            sms: { type: integer }
+
     Transaction:
       type: object
       properties:
-        id:
-          type: integer
+        id: { type: integer }
         type:
           type: string
-          enum:
-            - withdraw
-            - deposit
-          description: 'withdraw — расход, deposit — приход'
-        confirmed:
-          type: boolean
+          enum: [withdraw, deposit]
+          description: withdraw — расход, deposit — приход
+        confirmed: { type: boolean }
         meta:
           type: object
           properties:
-            description:
-              type: string
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
+            description: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
         total:
           type: number
-          description: 'Сумма (отрицательная для withdraw, положительная для deposit)'
-      x-stoplight:
-        id: s2hlr2d4wudk5
+          description: Сумма (отрицательная для withdraw, положительная для deposit)
+
     Notification:
       type: object
-      required:
-        - id
-        - type
-        - read_at
-        - created_at
-        - updated_at
+      required: [id, type, read_at, created_at, updated_at]
       properties:
-        id:
-          type: string
-          format: uuid
+        id: { type: string, format: uuid }
         type:
           type: string
           enum:
@@ -3715,38 +2783,17 @@ components:
           type: object
           description: Содержимое уведомления (структура зависит от типа)
           properties:
-            id:
-              type: integer
-            name:
-              type: string
+            id: { type: integer }
+            name: { type: string }
             type:
               type: string
-              enum:
-                - autocall
-                - bulk
+              enum: [autocall, bulk]
             action:
               type: string
-              enum:
-                - deposit
-                - withdraw
-            amount:
-              type: string
-            balance:
-              type: number
-              description: Текущий баланс (для LowBalance)
-            threshold:
-              type: number
-              description: Порог баланса (для LowBalance)
-        read_at:
-          type:
-            - string
-            - 'null'
-          description: Дата прочтения (null если не прочитано)
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-      x-stoplight:
-        id: w5jefyhvo9u1o
+              enum: [deposit, withdraw]
+            amount: { type: string }
+            balance: { type: number, description: Текущий баланс (для LowBalance) }
+            threshold: { type: number, description: Порог баланса (для LowBalance) }
+        read_at: { type: [string, "null"], description: Дата прочтения (null если не прочитано) }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
