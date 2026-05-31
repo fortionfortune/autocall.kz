@@ -31,8 +31,6 @@ info:
 servers:
   - url: https://autocall.kz/api/v1
     description: API v1 (требует Bearer токен)
-  - url: https://autocall.kz/api/public
-    description: Публичный API (без аутентификации)
 
 security:
   - bearerAuth: []
@@ -79,131 +77,7 @@ paths:
   # ПУБЛИЧНЫЙ API (без авторизации)
   # ─────────────────────────────────────────
 
-  /tariffs:
-    servers:
-      - url: https://autocall.kz/api/public
-    get:
-      operationId: getTariffs
-      summary: Получить актуальные тарифы
-      tags: [Публичный API]
-      security: []
-      description: Возвращает список тарифных планов с ценами на звонки, SMS и синтез речи. Данные кешируются на 1 час.
-      responses:
-        "200":
-          description: Список тарифов
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  currency:
-                    type: string
-                    example: KZT
-                  note:
-                    type: string
-                  tariffs:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Tariff"
-              example:
-                currency: KZT
-                note: "Цены за единицу: звонок (секунда тарификации), SMS (1 сообщение)."
-                tariffs:
-                  - name: BRONZE
-                    threshold: 0
-                    call_price: 3.5
-                    sms_price: 18
-                    synthesis_price: 2
-                    speech_price: 2
-                    recording_price: 1
-                  - name: SILVER
-                    threshold: 50000
-                    call_price: 2.8
-                    sms_price: 16
-                    synthesis_price: 1.8
-                    speech_price: 1.8
-                    recording_price: 0.8
-                  - name: GOLD
-                    threshold: 200000
-                    call_price: 2.2
-                    sms_price: 14
-                    synthesis_price: 1.5
-                    speech_price: 1.5
-                    recording_price: 0.5
-
-  /test-call:
-    servers:
-      - url: https://autocall.kz/api/public
-    post:
-      operationId: sendTestCall
-      summary: Отправить тестовый звонок
-      tags: [Публичный API]
-      security: []
-      description: |
-        Инициирует реальный тестовый звонок от AutoCall.kz на указанный казахстанский номер телефона.
-
-        Ограничения:
-        - Один звонок на номер в сутки
-        - Доступно с 09:00 до 21:30 по Алматы (UTC+6)
-        - Только казахстанские мобильные номера (7xxxxxxxxxx)
-        - Rate limit: 2 запроса в минуту с одного IP
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - phone
-              properties:
-                phone:
-                  type: string
-                  description: Казахстанский мобильный номер без +7, только цифры после 7
-                  pattern: "^(700|701|702|705|706|707|708|747|771|775|776|777|778|710|711|712|713|714|715|716|717|718|721|722|723|724|725|726|727|728|729|736)\\d{7}$"
-                  example: "7771234567"
-            example:
-              phone: "7771234567"
-      responses:
-        "200":
-          description: Звонок успешно инициирован
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                  number:
-                    type: string
-              example:
-                message: "Тестовый звонок отправлен на номер +77771234567. Ожидайте звонка в течение 1–2 минут."
-                number: "+77771234567"
-        "422":
-          description: Валидация не прошла или звонки недоступны сейчас
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorMessage"
-        "429":
-          description: Номер уже получил тестовый звонок сегодня или превышен rate limit
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorMessage"
-        "403":
-          description: Номер в чёрном списке или запрос заблокирован
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorMessage"
-
-  # ─────────────────────────────────────────
-  # СПИСКИ КОНТАКТОВ
-  # ─────────────────────────────────────────
-
   /lists:
-    servers:
-      - url: https://autocall.kz/api/v1
     get:
       summary: Получить все списки контактов
       operationId: get-lists
@@ -334,10 +208,9 @@ paths:
               example:
                 id: 74
                 name: "Клиенты апрель"
+                client_id: "vip-2024"
                 importing: false
                 nonexistent: null
-                client_id: "vip-2024"
-                used: 0
                 contacts_count: 2
                 created_at: "2024-04-11 22:14:09"
                 updated_at: "2024-04-11 22:14:09"
@@ -347,8 +220,6 @@ paths:
         '500': { $ref: '#/components/responses/500' }
 
   /lists/{id}:
-    servers:
-      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
@@ -436,8 +307,6 @@ paths:
         '500': { $ref: '#/components/responses/500' }
 
   /lists/append/{id}:
-    servers:
-      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
@@ -494,8 +363,6 @@ paths:
         '429': { $ref: '#/components/responses/429' }
 
   /lists/nonexistent/{id}:
-    servers:
-      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
@@ -543,8 +410,6 @@ paths:
   # ─────────────────────────────────────────
 
   /contacts/{id}:
-    servers:
-      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
@@ -597,8 +462,6 @@ paths:
   # ─────────────────────────────────────────
 
   /sounds:
-    servers:
-      - url: https://autocall.kz/api/v1
     get:
       summary: Получить все аудиозаписи
       operationId: get-sounds
@@ -734,8 +597,6 @@ paths:
         '500': { $ref: '#/components/responses/500' }
 
   /sounds/{id}:
-    servers:
-      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
@@ -809,8 +670,6 @@ paths:
         '500': { $ref: '#/components/responses/500' }
 
   /sounds/listen/{file}:
-    servers:
-      - url: https://autocall.kz/api/v1
     parameters:
       - name: file
         in: path
@@ -864,8 +723,6 @@ paths:
   # ─────────────────────────────────────────
 
   /scenarios:
-    servers:
-      - url: https://autocall.kz/api/v1
     get:
       summary: Получить все сценарии
       operationId: get-scenarios
@@ -933,8 +790,6 @@ paths:
         '500': { $ref: '#/components/responses/500' }
 
   /scenarios/{id}:
-    servers:
-      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
@@ -1008,8 +863,6 @@ paths:
   # ─────────────────────────────────────────
 
   /autocalls:
-    servers:
-      - url: https://autocall.kz/api/v1
     get:
       summary: Получить все обзвоны
       operationId: get-autocalls
@@ -1127,8 +980,6 @@ paths:
         '429': { $ref: '#/components/responses/429' }
 
   /autocalls/{id}:
-    servers:
-      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
@@ -1219,8 +1070,6 @@ paths:
         '500': { $ref: '#/components/responses/500' }
 
   /autocalls/calculate:
-    servers:
-      - url: https://autocall.kz/api/v1
     post:
       summary: Узнать стоимость обзвона
       operationId: post-autocalls-calculate
@@ -1256,8 +1105,6 @@ paths:
         '429': { $ref: '#/components/responses/429' }
 
   /autocalls/relaunch/{id}:
-    servers:
-      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
@@ -1301,8 +1148,6 @@ paths:
         '429': { $ref: '#/components/responses/429' }
 
   /calls/{id}:
-    servers:
-      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
@@ -1328,8 +1173,6 @@ paths:
         '429': { $ref: '#/components/responses/429' }
 
   /calls/recordings/{id}:
-    servers:
-      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
@@ -1358,8 +1201,6 @@ paths:
   # ─────────────────────────────────────────
 
   /bulks:
-    servers:
-      - url: https://autocall.kz/api/v1
     get:
       summary: Получить все рассылки
       operationId: get-bulks
@@ -1470,8 +1311,6 @@ paths:
         '500': { $ref: '#/components/responses/500' }
 
   /bulks/{id}:
-    servers:
-      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
@@ -1544,8 +1383,6 @@ paths:
         '500': { $ref: '#/components/responses/500' }
 
   /bulks/calculate:
-    servers:
-      - url: https://autocall.kz/api/v1
     post:
       summary: Узнать стоимость рассылки
       operationId: post-bulks-calculate
@@ -1597,8 +1434,6 @@ paths:
         '500': { $ref: '#/components/responses/500' }
 
   /messages/{id}:
-    servers:
-      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
@@ -1628,8 +1463,6 @@ paths:
   # ─────────────────────────────────────────
 
   /settings:
-    servers:
-      - url: https://autocall.kz/api/v1
     get:
       summary: Получить настройки аккаунта
       operationId: get-settings
@@ -1697,8 +1530,6 @@ paths:
         '500': { $ref: '#/components/responses/500' }
 
   /settings/{visit_card_type}:
-    servers:
-      - url: https://autocall.kz/api/v1
     parameters:
       - name: visit_card_type
         in: path
@@ -1724,8 +1555,6 @@ paths:
         '500': { $ref: '#/components/responses/500' }
 
   /settings/confirmed_numbers:
-    servers:
-      - url: https://autocall.kz/api/v1
     get:
       summary: Получить подтверждённые номера
       operationId: get-settings-confirmed-numbers
@@ -1811,8 +1640,6 @@ paths:
   # ─────────────────────────────────────────
 
   /balance:
-    servers:
-      - url: https://autocall.kz/api/v1
     get:
       summary: Получить баланс
       operationId: get-balance
@@ -1843,8 +1670,6 @@ paths:
         '429': { $ref: '#/components/responses/429' }
 
   /payments:
-    servers:
-      - url: https://autocall.kz/api/v1
     get:
       summary: Получить транзакции
       operationId: get-payments
@@ -1928,8 +1753,6 @@ paths:
   # ─────────────────────────────────────────
 
   /dashboard:
-    servers:
-      - url: https://autocall.kz/api/v1
     get:
       summary: Получить данные панели мониторинга
       operationId: get-dashboard
@@ -2000,8 +1823,6 @@ paths:
   # ─────────────────────────────────────────
 
   /notifications:
-    servers:
-      - url: https://autocall.kz/api/v1
     get:
       summary: Получить уведомления
       operationId: get-notifications
@@ -2071,8 +1892,6 @@ paths:
         '429': { $ref: '#/components/responses/429' }
 
   /notifications/{id}:
-    servers:
-      - url: https://autocall.kz/api/v1
     parameters:
       - name: id
         in: path
@@ -2125,8 +1944,6 @@ paths:
   # ─────────────────────────────────────────
 
   /flash-calls:
-    servers:
-      - url: https://autocall.kz/api/v1
     post:
       summary: Отправить Flash Call
       operationId: post-flash-calls
@@ -2231,6 +2048,128 @@ paths:
 # КОМПОНЕНТЫ
 # ─────────────────────────────────────────
 
+  /tariffs:
+    servers:
+      - url: https://autocall.kz/api/public
+    get:
+      operationId: getTariffs
+      summary: Получить актуальные тарифы
+      tags: [Публичный API]
+      security: []
+      description: Возвращает список тарифных планов с ценами на звонки, SMS и синтез речи. Данные кешируются на 1 час.
+      responses:
+        "200":
+          description: Список тарифов
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  currency:
+                    type: string
+                    example: KZT
+                  note:
+                    type: string
+                  tariffs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Tariff"
+              example:
+                currency: KZT
+                note: "Цены за единицу: звонок (секунда тарификации), SMS (1 сообщение)."
+                tariffs:
+                  - name: BRONZE
+                    threshold: 0
+                    call_price: 3.5
+                    sms_price: 18
+                    synthesis_price: 2
+                    speech_price: 2
+                    recording_price: 1
+                  - name: SILVER
+                    threshold: 50000
+                    call_price: 2.8
+                    sms_price: 16
+                    synthesis_price: 1.8
+                    speech_price: 1.8
+                    recording_price: 0.8
+                  - name: GOLD
+                    threshold: 200000
+                    call_price: 2.2
+                    sms_price: 14
+                    synthesis_price: 1.5
+                    speech_price: 1.5
+                    recording_price: 0.5
+
+  /test-call:
+    servers:
+      - url: https://autocall.kz/api/public
+    post:
+      operationId: sendTestCall
+      summary: Отправить тестовый звонок
+      tags: [Публичный API]
+      security: []
+      description: |
+        Инициирует реальный тестовый звонок от AutoCall.kz на указанный казахстанский номер телефона.
+
+        Ограничения:
+        - Один звонок на номер в сутки
+        - Доступно с 09:00 до 21:30 по Алматы (UTC+6)
+        - Только казахстанские мобильные номера (7xxxxxxxxxx)
+        - Rate limit: 2 запроса в минуту с одного IP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+              properties:
+                phone:
+                  type: string
+                  description: Казахстанский мобильный номер без +7, только цифры после 7
+                  pattern: "^(700|701|702|705|706|707|708|747|771|775|776|777|778|710|711|712|713|714|715|716|717|718|721|722|723|724|725|726|727|728|729|736)\\d{7}$"
+                  example: "7771234567"
+            example:
+              phone: "7771234567"
+      responses:
+        "200":
+          description: Звонок успешно инициирован
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  number:
+                    type: string
+              example:
+                message: "Тестовый звонок отправлен на номер +77771234567. Ожидайте звонка в течение 1–2 минут."
+                number: "+77771234567"
+        "422":
+          description: Валидация не прошла или звонки недоступны сейчас
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "429":
+          description: Номер уже получил тестовый звонок сегодня или превышен rate limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          description: Номер в чёрном списке или запрос заблокирован
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+
+  # ─────────────────────────────────────────
+  # СПИСКИ КОНТАКТОВ
+  # ─────────────────────────────────────────
+
 components:
 
   securitySchemes:
@@ -2259,6 +2198,7 @@ components:
     DateFrom:
       name: date_from
       in: query
+      required: false
       schema:
         type: string
         example: "2024-01-01"
@@ -2266,6 +2206,7 @@ components:
     DateTo:
       name: date_to
       in: query
+      required: false
       schema:
         type: string
         example: "2024-12-31"
@@ -2273,6 +2214,7 @@ components:
     Order:
       name: order
       in: query
+      required: false
       schema:
         type: string
         enum: [asc, desc]
@@ -2280,12 +2222,14 @@ components:
     ClientIdFilter:
       name: client_id
       in: query
+      required: false
       schema:
         type: string
       description: Фильтр по client_id из Вашей системы
     Page:
       name: page
       in: query
+      required: false
       schema:
         type: integer
         minimum: 1
