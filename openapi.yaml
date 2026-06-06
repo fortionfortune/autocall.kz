@@ -176,8 +176,15 @@ paths:
                         description: Номер телефона в формате +7XXXXXXXXXX
                       extra:
                         type: string
-                        maxLength: 30
+                        maxLength: 255
                         description: Дополнительное описание (ФИО, ИИН и т.п.)
+                      variables:
+                        type: object
+                        description: |
+                          Переменные для персонализации SMS. Используются в тексте рассылки через `{{varname}}`.
+                          Ключи — только `[a-zA-Z0-9_]`, до 30 символов. Значения — строки до 255 символов.
+                        additionalProperties: { type: string }
+                        example: { name: "Иванов Иван", debt: "15000" }
                 client_id:
                   type: string
                   maxLength: 256
@@ -189,7 +196,7 @@ paths:
                   numbers:
                     - number: "+77010000001"
                     - number: "+77010000002"
-              С client_id и описанием:
+              С описанием и client_id:
                 value:
                   name: "VIP клиенты"
                   client_id: "vip-2024"
@@ -198,6 +205,22 @@ paths:
                       extra: "Иванов И.И."
                     - number: "+77010000002"
                       extra: "Петров П.П."
+              С переменными:
+                value:
+                  name: "Должники май"
+                  numbers:
+                    - number: "+77010000001"
+                      extra: "Иванов Иван"
+                      variables:
+                        name: "Иван"
+                        debt: "15000"
+                        contract: "№А-123"
+                    - number: "+77010000002"
+                      extra: "Петров Пётр"
+                      variables:
+                        name: "Пётр"
+                        debt: "3200"
+                        contract: "№Б-456"
       responses:
         '201':
           description: Список успешно создан.
@@ -209,8 +232,6 @@ paths:
                 id: 74
                 name: "Клиенты апрель"
                 client_id: "vip-2024"
-                importing: false
-                nonexistent: null
                 contacts_count: 2
                 created_at: "2024-04-11 22:14:09"
                 updated_at: "2024-04-11 22:14:09"
@@ -343,7 +364,11 @@ paths:
                         pattern: '^\+7(700|701|702|705|707|708|747|771|775|776|777|778|710|711|712|713|714|715|716|717|718|721|722|723|724|725|726|727|728|729|736)\d{7}$'
                       extra:
                         type: string
-                        maxLength: 30
+                        maxLength: 255
+                      variables:
+                        type: object
+                        description: Переменные для персонализации SMS. Ключи — `[a-zA-Z0-9_]`.
+                        additionalProperties: { type: string }
       responses:
         '201':
           description: Список успешно дополнен.
@@ -433,7 +458,7 @@ paths:
               example:
                 id: 49
                 list_id: 73
-                number: "+77010000001"
+                number: "+77010000000"
                 extra: "Иванов И.И."
                 created_at: "2024-03-31 05:55:19"
                 updated_at: "2024-03-31 05:55:19"
@@ -959,7 +984,7 @@ paths:
                       data:
                         text: "Ваш код подтверждения: 3, 0, 7, 5."
                   list_id:
-                    - number: "+77010000001"
+                    - number: "+77010000000"
                   sms_unanswered: true
                   text_unanswered: "Ваш код: 3075"
       responses:
@@ -1940,6 +1965,123 @@ paths:
         '500': { $ref: '#/components/responses/500' }
 
   # ─────────────────────────────────────────
+  # CALLER IDs (аренда номеров)
+  # ─────────────────────────────────────────
+
+  /caller-ids:
+    get:
+      operationId: get-caller-ids
+      tags: [Номерной пул]
+      summary: Список арендованных номеров
+      description: Возвращает список номеров, арендованных текущим пользователем, а также лимиты тарифа.
+      parameters:
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Список арендованных номеров.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        provider: { type: string, example: tele2 }
+                        number: { type: string, example: "+77086469620" }
+                        rented_until: { type: string, format: date-time }
+                  max_caller_id_rentals: { type: integer, description: Максимальное количество арендованных номеров по тарифу }
+                  caller_id_rent_price: { type: number, description: Стоимость аренды одного номера в тенге/мес }
+        '401': { $ref: '#/components/responses/401' }
+
+    post:
+      operationId: post-caller-ids
+      tags: [Номерной пул]
+      summary: Арендовать номер
+      description: |
+        Арендует выбранный номер из пула на 1 месяц. Со счёта списывается стоимость аренды согласно тарифу.
+        Перед арендой получите список доступных номеров через `GET /caller-ids/available` (веб-интерфейс)
+        или выберите ID из числа свободных.
+
+        **Лимиты:** Bronze — 0 номеров, Silver — 1, Gold — 2.
+      parameters:
+        - $ref: '#/components/parameters/ContentType'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [caller_id_id]
+              properties:
+                caller_id_id:
+                  type: integer
+                  description: ID записи из таблицы sip_caller_ids (свободного номера).
+            example:
+              caller_id_id: 42
+      responses:
+        '201':
+          description: Номер успешно арендован.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  number: { type: string, example: "+77086469620" }
+                  rented_until: { type: string, format: date-time }
+        '402':
+          description: Недостаточно средств на балансе.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: Тариф не поддерживает аренду или достигнут лимит.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: Выбранный номер уже занят другим пользователем.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/422' }
+        '401': { $ref: '#/components/responses/401' }
+
+  /caller-ids/{id}:
+    delete:
+      operationId: delete-caller-ids-id
+      tags: [Номерной пул]
+      summary: Освободить номер досрочно
+      description: Досрочно освобождает арендованный номер. **Средства не возвращаются.**
+      parameters:
+        - $ref: '#/components/parameters/Accept'
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+          description: ID записи арендованного номера.
+      responses:
+        '200':
+          description: Номер успешно освобождён.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        '404':
+          description: Номер не найден или не принадлежит вам.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/401' }
+
+  # ─────────────────────────────────────────
   # FLASH CALLS
   # ─────────────────────────────────────────
 
@@ -1998,11 +2140,11 @@ paths:
             examples:
               Авто-код из 4 цифр:
                 value:
-                  number: "+77010000001"
+                  number: "+77010000000"
                   digits: 4
               Свой код:
                 value:
-                  number: "+77010000001"
+                  number: "+77010000000"
                   code: "7823"
       responses:
         '201':
@@ -2025,7 +2167,7 @@ paths:
               example:
                 id: 1023
                 code: "7482"
-                number: "+77010000001"
+                number: "+77010000000"
         '401': { $ref: '#/components/responses/401' }
         '402':
           description: Недостаточно средств на балансе.
@@ -2145,8 +2287,8 @@ paths:
                   number:
                     type: string
               example:
-                message: "Тестовый звонок отправлен на номер +77771234567. Ожидайте звонка в течение 1–2 минут."
-                number: "+77771234567"
+                message: "Тестовый звонок отправлен на номер +77000000000. Ожидайте звонка в течение 1–2 минут."
+                number: "+77000000000"
         "422":
           description: Валидация не прошла или звонки недоступны сейчас
           content:
@@ -2358,12 +2500,19 @@ components:
 
     Contact:
       type: object
-      required: [id, number, extra, created_at, updated_at]
+      required: [id, number, extra, variables, created_at, updated_at]
       properties:
         id: { type: integer }
         list_id: { type: integer }
         number: { type: string }
-        extra: { type: [string, "null"] }
+        extra: { type: [string, "null"], description: Дополнительное описание (ФИО и т.п.) }
+        variables:
+          type: [object, "null"]
+          description: |
+            Переменные контакта для персонализации SMS. Используются в шаблонах через `{{varname}}`.
+            Ключи — только латиница, цифры и `_` (до 30 символов). Значения — строки до 255 символов.
+          example: { name: "Иванов Иван", debt: "15000", contract: "№123" }
+          additionalProperties: { type: string }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
@@ -2500,6 +2649,14 @@ components:
         record: { type: boolean, default: false, description: Записывать разговоры? }
         client_id: { type: string, maxLength: 60 }
         callback_url: { type: string, maxLength: 256 }
+        caller_id:
+          type: string
+          nullable: true
+          maxLength: 20
+          description: |
+            Номер для исходящих звонков. Если не указан или `null` — выбирается случайный номер из пула.
+            Можно передать конкретный арендованный вами номер (например `+77086469620`).
+            Номер должен быть арендован вами и не истёкшим. Получить список арендованных номеров: `GET /caller-ids`.
 
     AutocallDetail:
       allOf:
@@ -2518,6 +2675,7 @@ components:
             record: { type: boolean }
             comment: { type: [string, "null"] }
             callback_url: { type: [string, "null"] }
+            caller_id: { type: [string, "null"], description: Арендованный номер для звонков (null = случайный из пула) }
             finished_at: { type: [string, "null"] }
             calls_count: { type: integer }
             processed_percentage: { type: number }
@@ -2562,6 +2720,10 @@ components:
           type: string
           enum: [in_queue, success, recalled, no_answer, busy, error, spam]
         data: { type: [object, "null"], description: Результаты прохождения сценария }
+        variables:
+          type: [object, "null"]
+          description: Переменные контакта, скопированные при создании обзвона. Используются для подстановки в SMS текст.
+          additionalProperties: { type: string }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
@@ -2603,12 +2765,16 @@ components:
 
     Message:
       type: object
-      required: [id, bulk_id, number, extra, status, provider, init_time, status_time, created_at, updated_at]
+      required: [id, bulk_id, number, extra, variables, status, provider, init_time, status_time, created_at, updated_at]
       properties:
         id: { type: integer }
         bulk_id: { type: integer }
         number: { type: string }
         extra: { type: [string, "null"] }
+        variables:
+          type: [object, "null"]
+          description: Переменные контакта, скопированные на момент создания рассылки. Используются для подстановки в текст.
+          additionalProperties: { type: string }
         status:
           type: string
           enum: [queued, disabled, new, sent, delivered, pending, failed, expired, undeliverable, rejected]
@@ -2723,6 +2889,8 @@ components:
             - ExportFailure
             - RefreshBalance
             - LowBalance
+            - CallerIdExpiringSoon
+            - CallerIdReleased
         data:
           type: object
           description: Содержимое уведомления (структура зависит от типа)
