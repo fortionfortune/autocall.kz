@@ -987,6 +987,21 @@ paths:
                     - number: "+77010000000"
                   sms_unanswered: true
                   text_unanswered: "Ваш код: 3075"
+              С персональными SMS недозвонившимся:
+                summary: Переменные подставляются в SMS для тех, кто не ответил
+                value:
+                  name: "Напоминание о записи"
+                  type: regular
+                  time_from: "10:00:00"
+                  time_to: "20:00:00"
+                  audio_id: [5]
+                  list_id:
+                    - number: "+77010000001"
+                      variables: { name: "Иван", time: "14:30" }
+                    - number: "+77010000002"
+                      variables: { name: "Пётр", time: "16:00" }
+                  sms_unanswered: true
+                  text_unanswered: "{{name}}, мы не дозвонились. Ждём вас в {{time}}."
       responses:
         '201':
           description: Обзвон создан (до 5000 номеров).
@@ -1264,6 +1279,21 @@ paths:
         Создаёт новую SMS рассылку.
         В `list_id` можно передавать ID существующих списков или объекты с номерами напрямую (максимум 5000).
         Для большего количества — сначала создайте список контактов через `/lists`.
+
+        #### Персонализация через переменные `{{varname}}`
+        В тексте рассылки можно использовать переменные контактов вида `{{name}}`, `{{debt}}` и т.п.
+        При отправке каждая переменная заменяется на значение из поля `variables` соответствующего контакта.
+        Это позволяет отправить персональные сообщения тысячам получателей **одним** запросом.
+
+        Пример текста: `Здравствуйте, {{name}}! Ваш долг {{debt}} тенге. Оплатите!`
+
+        Переменные берутся из контактов, у которых они заданы — либо в существующем списке
+        (см. `POST /lists` и `POST /lists/append/{id}`), либо в объектах номеров, переданных в `list_id` напрямую.
+        Неизвестная переменная (для которой у контакта нет значения) заменяется на пустую строку.
+
+        > ⚠️ Стоимость и количество SMS-сегментов рассчитываются по «худшему случаю» — берётся
+        > самое длинное значение каждой переменной среди всех контактов. Помните, что кириллица
+        > использует Unicode-кодировку (до 70 символов в сегменте против 160 для латиницы).
       parameters:
         - $ref: '#/components/parameters/ContentType'
         - $ref: '#/components/parameters/Accept'
@@ -1285,7 +1315,10 @@ paths:
                   type: string
                   minLength: 1
                   maxLength: 1600
-                  description: Текст SMS сообщения
+                  description: |
+                    Текст SMS сообщения. Поддерживает переменные вида `{{varname}}`, которые
+                    заменяются на значения из поля `variables` каждого контакта.
+                    Например: `Здравствуйте, {{name}}! Ваш долг {{debt}} тенге.`
                 list_id:
                   type: array
                   minItems: 1
@@ -1300,6 +1333,13 @@ paths:
                         properties:
                           number: { type: string, minLength: 12, maxLength: 12 }
                           extra: { type: string, maxLength: 60 }
+                          variables:
+                            type: object
+                            description: |
+                              Переменные контакта для подстановки в текст через `{{varname}}`.
+                              Ключи — `[a-zA-Z0-9_]` (до 30 символов), значения — строки (до 255 символов).
+                            additionalProperties: { type: string }
+                            example: { name: "Иван", debt: "15000" }
                 date_from:
                   type: string
                   minLength: 10
@@ -1318,12 +1358,30 @@ paths:
                   type: string
                   maxLength: 256
                   description: URL для доставки отчётов о рассылке и сообщениях
-            example:
-              name: "Акция — ноябрь"
-              text: "Скидка 20% только сегодня! Промокод: SALE20"
-              list_id: [10, 15]
-              time_from: "10:00:00"
-              callback_url: "https://example.com/sms-reports"
+            examples:
+              Простая рассылка:
+                value:
+                  name: "Акция — ноябрь"
+                  text: "Скидка 20% только сегодня! Промокод: SALE20"
+                  list_id: [10, 15]
+                  time_from: "10:00:00"
+                  callback_url: "https://example.com/sms-reports"
+              Персональная рассылка по существующему списку:
+                summary: Текст с переменными, контакты берутся из списка
+                value:
+                  name: "Напоминание о долге"
+                  text: "Здравствуйте, {{name}}! Ваш долг {{debt}} тенге. Оплатите до конца месяца."
+                  list_id: [10]
+              Персональная рассылка одним запросом:
+                summary: Переменные и номера передаются прямо в запросе
+                value:
+                  name: "Напоминание о долге"
+                  text: "Здравствуйте, {{name}}! Ваш долг {{debt}} тенге. Оплатите до конца месяца."
+                  list_id:
+                    - number: "+77010000001"
+                      variables: { name: "Иван", debt: "15000" }
+                    - number: "+77010000002"
+                      variables: { name: "Пётр", debt: "3200" }
       responses:
         '201':
           description: Рассылка создана.
@@ -1425,7 +1483,13 @@ paths:
               required: [name, text, list_id]
               properties:
                 name: { type: string, minLength: 1, maxLength: 40 }
-                text: { type: string, minLength: 1, maxLength: 1600 }
+                text:
+                  type: string
+                  minLength: 1
+                  maxLength: 1600
+                  description: |
+                    Текст SMS. Поддерживает переменные `{{varname}}`. Стоимость рассчитывается
+                    по «худшему случаю» — берётся самое длинное значение каждой переменной.
                 list_id:
                   type: array
                   minItems: 1
@@ -1438,6 +1502,10 @@ paths:
                         properties:
                           number: { type: string, minLength: 12, maxLength: 12 }
                           extra: { type: string, maxLength: 60 }
+                          variables:
+                            type: object
+                            additionalProperties: { type: string }
+                            description: Переменные контакта для подстановки в текст через `{{varname}}`.
                 date_from: { type: string, minLength: 10, maxLength: 10 }
                 time_from: { type: string, minLength: 8, maxLength: 8 }
                 client_id: { type: string, maxLength: 60 }
@@ -2637,14 +2705,30 @@ components:
                 required: [number]
                 properties:
                   number: { type: string, minLength: 12, maxLength: 12 }
-                  extra: { type: string, maxLength: 30 }
+                  extra: { type: string, maxLength: 255 }
+                  variables:
+                    type: object
+                    description: |
+                      Переменные контакта для подстановки в SMS-тексты (`text`, `text_unanswered`)
+                      через `{{varname}}`. Ключи — `[a-zA-Z0-9_]` (до 30 символов),
+                      значения — строки (до 255 символов).
+                    additionalProperties: { type: string }
+                    example: { name: "Иван", debt: "15000" }
         max_tries: { type: integer, default: 1, enum: [1, 2, 3, 4] }
         tries_interval: { type: integer, default: 60, enum: [15, 30, 60, 120] }
         date_from: { type: string, minLength: 10, maxLength: 10 }
         sms: { type: boolean, default: false, description: Отправить SMS при успешном дозвоне? }
-        text: { type: string, description: "Обязательно если sms=true." }
+        text:
+          type: string
+          description: |
+            Текст SMS при успешном дозвоне (обязательно если `sms=true`).
+            Поддерживает переменные контакта `{{varname}}` — например `Здравствуйте, {{name}}!`.
         sms_unanswered: { type: boolean, default: false, description: Отправить SMS если не дозвонились? }
-        text_unanswered: { type: string, description: "Обязательно если sms_unanswered=true." }
+        text_unanswered:
+          type: string
+          description: |
+            Текст SMS для недозвонившихся (обязательно если `sms_unanswered=true`).
+            Поддерживает переменные контакта `{{varname}}`.
         lifetime: { type: boolean, default: false, description: Ждать перезвонивших абонентов }
         record: { type: boolean, default: false, description: Записывать разговоры? }
         client_id: { type: string, maxLength: 60 }
