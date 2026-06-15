@@ -798,7 +798,35 @@ paths:
                   description: Название сценария
                 data:
                   type: string
-                  description: Сценарий в виде JSON-строки (json_encode)
+                  description: |
+                    Сценарий — это JSON-объект, **сериализованный в строку** (json_encode в PHP,
+                    JSON.stringify в JS, json.dumps в Python — есть во всех языках). Ключи объекта =
+                    id элементов, значения = сами элементы.
+
+                    Обязательные элементы:
+                    - ровно один `start` — точка входа, поле `next` = `"TALK_DETECT"`;
+                    - ровно один `talk_detect` под ключом `TALK_DETECT` (узел «ждём речи»);
+                    - минимум один `end` (`type: end`, `next: null`).
+
+                    Каждый элемент содержит: `id` (совпадает с ключом; у пользовательских элементов —
+                    случайный uuid), `type`, `name`, `prev` (массив id элементов, ведущих в этот) и
+                    `next` (id следующего) либо ветки (`data.directions` для dtmf/speech,
+                    `data.timeout`/`data.else` для таймаута и «иначе» и т.п.).
+
+                    Доступные через API типы: `start`, `talk_detect`, `end`, `playback`, `record`,
+                    `dtmf`, `speech`, `dial`, `sms`, `sms_me`, `request`.
+
+                    Пример минимального сценария (объект ДО сериализации):
+                    ```json
+                    {
+                      "START":       { "id": "START", "type": "start", "name": "Начало", "prev": [], "next": "TALK_DETECT" },
+                      "TALK_DETECT": { "id": "TALK_DETECT", "type": "talk_detect", "name": "Ждём речи", "prev": ["START"], "next": "a1b2c3" },
+                      "a1b2c3":      { "id": "a1b2c3", "type": "playback", "name": "Приветствие", "prev": ["TALK_DETECT"], "next": "END", "data": 12345 },
+                      "END":         { "id": "END", "type": "end", "name": "Конец", "prev": ["a1b2c3"], "next": null }
+                    }
+                    ```
+                    Этот объект нужно json_encode'нуть и передать строкой в поле `data`. В примере
+                    `data: 12345` у playback — это id Вашей аудиозаписи (см. эндпоинт «Аудиозаписи»).
                 client_id:
                   type: string
                   maxLength: 60
