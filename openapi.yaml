@@ -46,6 +46,23 @@ tags:
     description: Загрузка аудиофайлов и синтез речи для использования в обзвонах.
   - name: Сценарии
     description: Интерактивные сценарии для обзвонов с распознаванием речи и ветвлением логики.
+  - name: ИИ-агенты
+    description: |
+      Голосовые ИИ-агенты: живой разговор с абонентом вместо жёсткого сценария.
+
+      Агент сам ведёт диалог, отвечает на вопросы, извлекает из разговора нужные вам поля
+      (`data_schema`) и может по ходу разговора отправить SMS или сходить HTTP-запросом
+      на ваш сервер (`tools`).
+
+      **Жизненный цикл:**
+      1. `POST /agents` — агент создаётся со статусом `generating`;
+      2. фоновый профилировщик считает его параметры (это секунды, реже — минуты);
+      3. статус становится `ready` — только с ним агента можно поставить в обзвон;
+      4. `POST /autocalls` с `type=agent` и `agent_id`.
+
+      **Правка агента** (`PUT /agents/{id}`) с новым `prompt` или `max_seconds` снова переводит
+      его в `generating`. Уже запущенные обзвоны это не затрагивает — они звонят по слепку,
+      снятому в момент создания обзвона.
   - name: Обзвоны
     description: Создание и управление автоматическими обзвонами.
   - name: SMS рассылки
@@ -912,6 +929,305 @@ paths:
         '500': { $ref: '#/components/responses/500' }
 
   # ─────────────────────────────────────────
+  # ИИ-АГЕНТЫ
+  # ─────────────────────────────────────────
+
+  /agents:
+    get:
+      summary: Получить всех ИИ-агентов
+      operationId: get-agents
+      tags: [ИИ-агенты]
+      description: |
+        Возвращает всех агентов аккаунта с постраничным выводом.
+
+        #### Статусы агента
+        | Статус | Значение | Можно в обзвон |
+        |--------|----------|----------------|
+        | `generating` | считаются параметры агента | нет |
+        | `ready` | готов | да |
+        | `failed` | не удалось подготовить | нет |
+        | `draft` | черновик из мастера в личном кабинете | нет |
+      parameters:
+        - $ref: '#/components/parameters/ContentType'
+        - $ref: '#/components/parameters/Accept'
+        - $ref: '#/components/parameters/ClientIdFilter'
+        - $ref: '#/components/parameters/Page'
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [draft, generating, ready, failed]
+          description: Оставить только агентов с этим статусом.
+      responses:
+        '200':
+          description: Постраничный вывод агентов.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Pagination'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Agent' }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '429': { $ref: '#/components/responses/429' }
+
+    post:
+      summary: Создать ИИ-агента
+      operationId: post-agents
+      tags: [ИИ-агенты]
+      description: |
+        Создаёт голосового ИИ-агента. В ответе агент со статусом `generating` —
+        дождитесь `ready` (опрашивайте `GET /agents/{id}`), прежде чем ставить его в обзвон.
+
+        #### Из чего состоит агент
+        - **`prompt`** — сценарий разговора обычным текстом. Обязан содержать три секции,
+          см. ниже. Правила безопасности мы дописываем сами — их указывать не нужно.
+        - **`data_schema`** — что агент должен вынести из разговора. Эти поля попадут
+          в результат звонка и в выгрузку обзвона.
+        - **`tools`** — необязательные действия по ходу разговора: отправить SMS (`sms`)
+          или сходить запросом на ваш сервер и озвучить ответ (`http`).
+        - **`voice`** — голос агента, из `GET /agents/voices`.
+        - **`max_seconds`** — потолок длительности разговора. Он же потолок стоимости звонка.
+
+        #### Обязательные секции `prompt`
+        Сценарий должен содержать три секции — иначе `422`:
+
+        | Секция | Что в ней |
+        |--------|-----------|
+        | `## Кто ты` | Имя агента, от лица какой компании звонит, характер в 2–4 словах |
+        | `## Задача звонка` | Чего добиться, 1–2 предложения, конкретно |
+        | `## Ход разговора` | Шаги разговора. Первым шагом — дословная первая фраза |
+
+        Секция — это заголовок `## Название` (можно глубже: `###`) и **непустой** текст под ним.
+        Регистр и лишние пробелы не важны, порядок секций — любой.
+
+        Дальше по желанию — `## Что собрать`, `## Инструменты`, `## Границы` (чего не обещать,
+        что отвечать на неудобные вопросы) и любые свои секции.
+
+        ⚠️ Чем длиннее `prompt`, тем дороже каждый звонок: сценарий заново отправляется модели
+        на каждой реплике. Пишите плотно, без воды и повторов.
+      parameters:
+        - $ref: '#/components/parameters/ContentType'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AgentCreate' }
+            examples:
+              Простой агент — подтверждение записи:
+                value:
+                  name: "Асель"
+                  voice: "Sulafat"
+                  max_seconds: 180
+                  prompt: |
+                    ## Кто ты
+                    Асель — женский голос стоматологии «Дента». Звонишь пациенту подтвердить
+                    запись на приём. Характер: спокойная, вежливая, без напора.
+
+                    ## Задача звонка
+                    Узнать, придёт ли пациент в назначенное время. Если не придёт — предложить
+                    перенести на другой день и записать желаемую дату.
+
+                    ## Ход разговора
+                    1. Первая фраза РОВНО: «Здравствуйте! Это Асель, стоматология Дента.
+                       Вы записаны к нам на приём — подскажите, всё в силе?»
+                    2. Подтвердил — поблагодари, напомни время и попрощайся.
+                    3. Не придёт — спроси, на какой день перенести, повтори дату вслух.
+                    4. Просит перезвонить позже — согласись и заверши разговор.
+
+                    ## Границы
+                    Про цены: консультация бесплатная, стоимость лечения врач назовёт на приёме.
+                    Не ставь диагнозов и не обещай скидок.
+                  data_schema:
+                    - { key: "confirmed", label: "Подтвердил приём" }
+                    - { key: "new_date", label: "Просит перенести на" }
+                    - { key: "comment", label: "Комментарий" }
+              Агент с SMS и запросом на ваш сервер:
+                value:
+                  name: "Ерлан"
+                  voice: "Charon"
+                  max_seconds: 300
+                  client_id: "sales-agent-v2"
+                  prompt: |
+                    ## Кто ты
+                    Ерлан — мужской голос интернет-магазина «Технодом». Звонишь клиенту,
+                    который оставил заявку на сайте. Характер: бодрый, деловой.
+
+                    ## Задача звонка
+                    Выяснить, актуален ли заказ, и ответить на вопросы клиента по нему.
+
+                    ## Ход разговора
+                    1. Первая фраза РОВНО: «Здравствуйте! Ерлан, магазин Технодом.
+                       Вы оставляли заявку — вам ещё актуально?»
+                    2. Актуально — уточни, есть ли вопросы, и передай заказ в работу.
+                    3. Спрашивает про доставку — скажи «секундочку, посмотрю» и проверь статус.
+                    4. Просит прайс — предложи отправить SMS и отправь.
+
+                    ## Границы
+                    Сроки доставки называй только те, что вернул сервер. Скидок не обещай.
+                  data_schema:
+                    - { key: "interested", label: "Заказ актуален" }
+                    - { key: "question", label: "Вопрос клиента" }
+                  tools:
+                    - type: sms
+                      name: "price"
+                      when: "клиент попросил прислать прайс"
+                      text: "Прайс-лист: https://example.kz/price"
+                    - type: http
+                      name: "delivery"
+                      when: "клиент спрашивает о статусе доставки"
+                      method: GET
+                      url: "https://api.example.kz/delivery?phone={{phone}}"
+                      headers:
+                        - { key: "Authorization", value: "Bearer ВАШ_ТОКЕН" }
+                      bodyType: none
+                      response_template: "Ваш заказ {{status}}, ожидайте {{eta}}."
+                      fallback: "Не получилось проверить прямо сейчас, перезвоним."
+      responses:
+        '201':
+          description: Агент создан, идёт подготовка (`status=generating`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Agent' }
+        '401': { $ref: '#/components/responses/401' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
+  /agents/voices:
+    get:
+      summary: Получить список голосов
+      operationId: get-agent-voices
+      tags: [ИИ-агенты]
+      description: |
+        Доступные голоса агентов. Значение `name` передаётся в поле `voice` при создании агента,
+        `sample` — ссылка на аудиофрагмент для прослушивания.
+
+        Пол голоса важен: агент говорит о себе в первом лице, поэтому `prompt` пишите
+        в роде выбранного голоса.
+      parameters:
+        - $ref: '#/components/parameters/ContentType'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Список голосов.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Voice' }
+        '401': { $ref: '#/components/responses/401' }
+        '429': { $ref: '#/components/responses/429' }
+
+  /agents/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+        description: ID агента.
+    get:
+      summary: Получить ИИ-агента
+      operationId: get-agent
+      tags: [ИИ-агенты]
+      description: Возвращает агента по ID. Этим же запросом опрашивают готовность (`status=ready`).
+      parameters:
+        - $ref: '#/components/parameters/ContentType'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Агент.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Agent' }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '429': { $ref: '#/components/responses/429' }
+
+    put:
+      summary: Изменить ИИ-агента
+      operationId: put-agent
+      tags: [ИИ-агенты]
+      description: |
+        Меняет только переданные поля. `data_schema` и `tools` при передаче заменяются
+        целиком — чтобы удалить поле или инструмент, пришлите массив без него.
+
+        Изменение `prompt` или `max_seconds` возвращает агента в `generating`: параметры
+        считаются заново. Уже созданные обзвоны это не затрагивает — они звонят по слепку
+        агента, снятому при создании обзвона.
+
+        `active: false` временно выводит агента из оборота, не удаляя его.
+      parameters:
+        - $ref: '#/components/parameters/ContentType'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AgentUpdate' }
+            examples:
+              Поправить сценарий:
+                value:
+                  prompt: |
+                    ## Кто ты
+                    Асель — женский голос стоматологии «Дента». Характер: спокойная, вежливая.
+
+                    ## Задача звонка
+                    Подтвердить запись пациента на приём.
+
+                    ## Ход разговора
+                    1. Первая фраза РОВНО: «Здравствуйте! Это Асель из стоматологии Дента.»
+                    2. Уточни, придёт ли пациент в назначенное время.
+              Временно отключить:
+                value:
+                  active: false
+      responses:
+        '200':
+          description: Агент изменён.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Agent' }
+        '401': { $ref: '#/components/responses/401' }
+        '404': { $ref: '#/components/responses/404' }
+        '422': { $ref: '#/components/responses/422' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
+    delete:
+      summary: Удалить ИИ-агента
+      operationId: delete-agent
+      tags: [ИИ-агенты]
+      description: |
+        Удаляет агента. Отчёты по уже завершённым обзвонам с ним сохраняются.
+
+        Агента, занятого в незавершённом обзвоне (`running`, `awaiting`, `moderation`),
+        удалить нельзя — дождитесь окончания обзвона или остановите его.
+      parameters:
+        - $ref: '#/components/parameters/ContentType'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '204':
+          description: Агент удалён.
+        '401': { $ref: '#/components/responses/401' }
+        '403':
+          description: Агент занят в незавершённом обзвоне.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorMessage' }
+        '404': { $ref: '#/components/responses/404' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
+  # ─────────────────────────────────────────
   # ОБЗВОНЫ
   # ─────────────────────────────────────────
 
@@ -961,9 +1277,10 @@ paths:
       operationId: post-autocalls
       tags: [Обзвоны]
       description: |
-        Создаёт новый обзвон. Поддерживает два типа:
-        - `regular` — обычный обзвон с аудиозаписью
-        - `interactive` — интерактивный обзвон по сценарию
+        Создаёт новый обзвон. Поддерживает три типа:
+        - `regular` — обычный обзвон с аудиозаписью (нужен `audio_id`)
+        - `interactive` — интерактивный обзвон по сценарию (нужен `scenario_id`)
+        - `agent` — живой разговор с голосовым ИИ-агентом (нужен `agent_id`)
 
         В `list_id` можно передавать как ID существующих списков, так и объекты с номерами напрямую (будет создан автоматический список).
         В `audio_id` можно передавать как ID существующих аудиозаписей, так и объекты для создания новых (синтез или загрузка).
@@ -1006,6 +1323,28 @@ paths:
                     - number: "+77010000001"
                     - number: "+77010000002"
                     - number: "+77010000003"
+              Обзвон ИИ-агентом:
+                summary: Живой разговор — агент сам ведёт диалог и заполняет поля результата
+                description: |
+                  Агент должен быть в статусе `ready` (см. `GET /agents`). Переменные контакта
+                  (`variables`) агент знает во время разговора и обращается к абоненту по имени.
+
+                  Аудиозаписи не нужны — весь разговор ведёт агент.
+                value:
+                  name: "Подтверждение записи на приём"
+                  type: agent
+                  agent_id: 42
+                  time_from: "10:00:00"
+                  time_to: "19:00:00"
+                  max_tries: 2
+                  tries_interval: 60
+                  record: true
+                  list_id:
+                    - number: "+77010000001"
+                      variables: { name: "Иван", time: "14:30" }
+                    - number: "+77010000002"
+                      variables: { name: "Пётр", time: "16:00" }
+                  callback_url: "https://example.com/reports"
               Интерактивный обзвон:
                 value:
                   name: "Опрос удовлетворённости"
@@ -2164,17 +2503,17 @@ paths:
           description: Недостаточно средств на балансе.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: '#/components/schemas/ErrorMessage' }
         '403':
           description: Тариф не поддерживает аренду или достигнут лимит.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: '#/components/schemas/ErrorMessage' }
         '409':
           description: Выбранный номер уже занят другим пользователем.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: '#/components/schemas/ErrorMessage' }
         '422': { $ref: '#/components/responses/422' }
         '401': { $ref: '#/components/responses/401' }
 
@@ -2204,7 +2543,7 @@ paths:
           description: Номер не найден или не принадлежит вам.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema: { $ref: '#/components/schemas/ErrorMessage' }
         '401': { $ref: '#/components/responses/401' }
 
   # ─────────────────────────────────────────
@@ -2698,6 +3037,204 @@ components:
               type: object
               description: Структура сценария
 
+    Voice:
+      type: object
+      properties:
+        name: { type: string, description: "Значение для поля `voice` при создании агента", example: Sulafat }
+        display: { type: string, description: Как голос называется в личном кабинете, example: Асель }
+        gender: { type: string, enum: [male, female] }
+        characteristic: { type: [string, "null"], description: Краткое описание тембра/манеры }
+        sample: { type: string, description: Ссылка на аудиофрагмент голоса }
+        avatar: { type: string, description: Ссылка на аватар голоса }
+        has_avatar: { type: boolean }
+
+    AgentDataField:
+      type: object
+      required: [key]
+      properties:
+        key:
+          type: string
+          maxLength: 40
+          description: |
+            Идентификатор поля — только латиница, цифры и `_`. Под этим именем значение
+            попадёт в результат звонка.
+          example: confirmed
+        label:
+          type: string
+          maxLength: 100
+          description: Человеческое название колонки в отчёте. Не передали — возьмём `key`.
+          example: Подтвердил приём
+
+    AgentTool:
+      type: object
+      required: [type, name]
+      description: |
+        Действие, которое агент может выполнить прямо во время разговора.
+        Решение о вызове принимает сам агент — по полю `when`.
+      properties:
+        type:
+          type: string
+          enum: [sms, http]
+          description: "`sms` — отправить сообщение абоненту, `http` — запрос на ваш сервер."
+        name:
+          type: string
+          maxLength: 30
+          description: Короткое имя действия — латиница, цифры и `_`.
+          example: price
+        when:
+          type: string
+          maxLength: 200
+          description: В какой момент разговора это нужно сделать.
+          example: клиент попросил прислать прайс
+        text:
+          type: string
+          maxLength: 500
+          description: |
+            Только для `type=sms`. Текст сообщения — уходит абоненту буквально, агент его
+            не переписывает. Оплачивается по вашему тарифу SMS.
+        method:
+          type: string
+          enum: [GET, POST, PUT, PATCH, DELETE]
+          default: GET
+          description: Только для `type=http`.
+        url:
+          type: string
+          maxLength: 500
+          description: |
+            Только для `type=http`. Адрес вашего сервера. Поддерживает подстановки
+            `{{phone}}`, `{{name}}` и другие переменные контакта.
+
+            Запросы во внутренние и приватные сети запрещены — только публичные адреса.
+        headers:
+          type: array
+          maxItems: 10
+          description: Только для `type=http`. Заголовки запроса, в т.ч. авторизация.
+          items:
+            type: object
+            required: [key]
+            properties:
+              key: { type: string, maxLength: 100 }
+              value: { type: string, maxLength: 500 }
+        bodyType:
+          type: string
+          enum: [none, json]
+          default: none
+          description: Только для `type=http`.
+        body:
+          type: string
+          maxLength: 2000
+          description: Только для `type=http`. Тело запроса при `bodyType=json`. Поддерживает `{{переменные}}`.
+        response_template:
+          type: string
+          maxLength: 500
+          description: |
+            Только для `type=http`. Фраза, которую агент произнесёт вслух, с подстановкой
+            полей из ответа вашего сервера — например `Ваш заказ {{status}}`. Сырой JSON
+            абоненту никогда не зачитывается.
+        fallback:
+          type: string
+          maxLength: 300
+          description: Только для `type=http`. Что сказать, если запрос не удался.
+
+    Agent:
+      type: object
+      properties:
+        id: { type: integer }
+        client_id: { type: [string, "null"] }
+        name: { type: string }
+        voice: { type: string, description: Технический идентификатор голоса }
+        voice_name: { type: string, description: Название голоса в личном кабинете }
+        gender: { type: string, enum: [male, female] }
+        prompt: { type: [string, "null"] }
+        data_schema:
+          type: array
+          items: { $ref: '#/components/schemas/AgentDataField' }
+        tools:
+          type: array
+          items: { $ref: '#/components/schemas/AgentTool' }
+        max_seconds: { type: integer }
+        status:
+          type: string
+          enum: [draft, generating, ready, failed]
+        active: { type: boolean }
+        used:
+          type: integer
+          description: В скольких обзвонах агент уже задействован.
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    AgentCreate:
+      type: object
+      required: [name, voice, prompt, data_schema]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 60
+          description: Имя агента — он представляется им в разговоре.
+        voice:
+          type: string
+          description: Идентификатор голоса из `GET /agents/voices`.
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 10000
+          description: |
+            Сценарий разговора обычным текстом.
+
+            **Обязательно** содержит три непустые секции — `## Кто ты`, `## Задача звонка`,
+            `## Ход разговора`. Без любой из них — `422`. Подробности и пример — в описании
+            `POST /agents`.
+
+            Правила безопасности дописываются нами автоматически — включать их в текст не нужно.
+        data_schema:
+          type: array
+          minItems: 1
+          maxItems: 30
+          description: Поля, которые агент должен вынести из разговора.
+          items: { $ref: '#/components/schemas/AgentDataField' }
+        tools:
+          type: array
+          maxItems: 20
+          items: { $ref: '#/components/schemas/AgentTool' }
+        max_seconds:
+          type: integer
+          default: 300
+          minimum: 120
+          maximum: 600
+          description: Потолок длительности разговора в секундах. Он же потолок стоимости звонка.
+        client_id:
+          type: string
+          maxLength: 60
+          description: Ваш идентификатор агента — по нему агента можно найти через `GET /agents?client_id=`.
+
+    AgentUpdate:
+      type: object
+      description: Все поля необязательны — меняются только присланные.
+      properties:
+        name: { type: string, minLength: 1, maxLength: 60 }
+        voice: { type: string }
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 10000
+          description: |
+            Присылаете — присылайте сценарий целиком. Требование к секциям то же, что при
+            создании: `## Кто ты`, `## Задача звонка`, `## Ход разговора` должны быть на месте
+            и непустыми.
+        data_schema:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items: { $ref: '#/components/schemas/AgentDataField' }
+        tools:
+          type: array
+          maxItems: 20
+          items: { $ref: '#/components/schemas/AgentTool' }
+        max_seconds: { type: integer, minimum: 120, maximum: 600 }
+        active: { type: boolean, description: "`false` — временно вывести агента из оборота." }
+        client_id: { type: string, maxLength: 60 }
+
     AutocallSummary:
       type: object
       properties:
@@ -2711,7 +3248,7 @@ components:
         tries_interval: { type: integer }
         type:
           type: string
-          enum: [regular, interactive]
+          enum: [regular, interactive, agent]
         status:
           type: string
           enum: [running, completed, awaiting, moderation, denied]
@@ -2729,7 +3266,7 @@ components:
         time_to: { type: string, default: "18:00:00", minLength: 8, maxLength: 8 }
         type:
           type: string
-          enum: [regular, interactive]
+          enum: [regular, interactive, agent]
           default: regular
         audio_id:
           type: array
@@ -2752,6 +3289,12 @@ components:
                       pitch: { type: number, default: 0, minimum: -20, maximum: 20 }
                       file: { type: string, description: Base64 строка файла mp3/wav/ogg }
         scenario_id: { type: integer, description: "Обязательно если type=interactive." }
+        agent_id:
+          type: integer
+          description: |
+            Обязательно если `type=agent`. ID вашего ИИ-агента со статусом `ready`
+            (см. `GET /agents`). Агент в статусе `generating`, отключённый (`active=false`)
+            или удалённый вернёт `422`.
         list_id:
           type: array
           minItems: 1
@@ -2811,6 +3354,7 @@ components:
             text_unanswered: { type: [string, "null"] }
             audio_id: { type: [array, "null"], items: { type: [number, string] } }
             scenario_id: { type: [integer, "null"] }
+            agent_id: { type: [integer, "null"], description: ИИ-агент обзвона (только для type=agent) }
             processed: { type: integer }
             speeches: { type: integer }
             lifetime: { type: boolean }
