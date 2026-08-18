@@ -754,6 +754,66 @@ paths:
   # АУДИОЗАПИСИ
   # ─────────────────────────────────────────
 
+  /sounds/voices:
+    get:
+      summary: Получить список голосов синтеза
+      operationId: get-synthesis-voices
+      tags: [Аудиозаписи]
+      description: |
+        Голоса, доступные в поле `voice` при синтезе речи.
+
+        У каждого голоса есть `sample_url` — прямая ссылка на короткий сэмпл (m4a), по которой
+        его можно послушать перед выбором.
+
+        Поле `realtime` показывает, годится ли голос для элемента «Сказать текст» в сценарии:
+        там синтез идёт **во время звонка**, поэтому подходят только быстрые голоса. Если
+        указать голос с `realtime: false`, он будет автоматически заменён на быстрый — абонент
+        иначе слушал бы несколько секунд тишины.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  default:
+                    type: string
+                    description: Голос, который используется, если поле `voice` не передано
+                    example: Sulafat
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:       { type: string, description: "Значение для поля `voice`", example: Sulafat }
+                        title:      { type: string, description: Название в личном кабинете, example: Айгерим }
+                        gender:     { type: string, enum: [male, female] }
+                        languages:  { type: array, items: { type: string }, description: "Языки голоса (kk, ru, en)" }
+                        provider:   { type: string, enum: [gemini, yandex, google] }
+                        realtime:   { type: boolean, description: Годится ли для озвучки во время звонка }
+                        sample_url: { type: string, format: uri, description: Ссылка на сэмпл голоса }
+              example:
+                default: Sulafat
+                data:
+                  - name: Sulafat
+                    title: Айгерим
+                    gender: female
+                    languages: [kk, ru, en]
+                    provider: gemini
+                    realtime: false
+                    sample_url: https://autocall.kz/voices/tts-samples/Sulafat.m4a
+                  - name: madi
+                    title: Мади
+                    gender: male
+                    languages: [kk]
+                    provider: yandex
+                    realtime: true
+                    sample_url: https://autocall.kz/voices/tts-samples/madi.m4a
+        '401': { $ref: '#/components/responses/401' }
+        '429': { $ref: '#/components/responses/429' }
+        '500': { $ref: '#/components/responses/500' }
+
   /sounds:
     get:
       summary: Получить все аудиозаписи
@@ -825,19 +885,14 @@ paths:
                         description: "Если type=synthesis: текст для синтеза (обязательно)"
                       voice:
                         type: string
-                        default: ru-RU-Wavenet-B
-                        description: "Если type=synthesis: голос для синтеза"
-                        enum:
-                          - ru-RU-Wavenet-A
-                          - ru-RU-Wavenet-B
-                          - ru-RU-Wavenet-C
-                          - ru-RU-Wavenet-D
-                          - alyss
-                          - jane
-                          - oksana
-                          - omazh
-                          - zahar
-                          - ermil
+                        default: Sulafat
+                        description: >
+                          Если `type=synthesis`: голос для синтеза.
+                          Полный список с прослушиванием — в [`GET /sounds/voices`](#/paths/~1sounds~1voices/get):
+                          там у каждого голоса есть `sample_url`, по которой сэмпл можно послушать.
+                          Список намеренно не продублирован здесь — голоса добавляются и выключаются,
+                          и копия в документации протухла бы к следующему релизу.
+                          Если поле не передано, используется `Sulafat` (женский, казахский/русский/английский).
                       speed:
                         type: number
                         default: 1
@@ -849,7 +904,10 @@ paths:
                         default: 0
                         minimum: -20
                         maximum: 20
-                        description: "Если type=synthesis: высота тона"
+                        description: >
+                          Если `type=synthesis`: высота тона.
+                          Работает только у голосов Yandex и Google (`realtime: true` в `GET /sounds/voices`).
+                          Новые голоса такого параметра не имеют, и для них значение игнорируется.
                       file:
                         type: string
                         description: "Если type=upload: файл в формате Base64 (mp3/wav/ogg, обязательно)"
@@ -864,9 +922,8 @@ paths:
                   type: synthesis
                   data:
                     - text: "Здравствуйте! Напоминаем об оплате до конца месяца."
-                      voice: ru-RU-Wavenet-B
+                      voice: Sulafat
                       speed: 1
-                      pitch: 0
               Загрузка файла:
                 value:
                   name: "Моё приветствие"
@@ -1618,6 +1675,7 @@ paths:
                     - type: synthesis
                       data:
                         text: "Ваш код подтверждения: 3, 0, 7, 5."
+                        voice: Sulafat
                   list_id:
                     - number: "+77010000000"
                   sms_unanswered: true
@@ -3537,9 +3595,10 @@ components:
                       text: { type: string, minLength: 1, maxLength: 400 }
                       voice:
                         type: string
-                        enum: [ru-RU-Wavenet-A, ru-RU-Wavenet-B, ru-RU-Wavenet-C, ru-RU-Wavenet-D, alyss, jane, oksana, omazh, zahar, ermil, filipp, alena]
+                        default: Sulafat
+                        description: Идентификатор голоса из `GET /sounds/voices`. По умолчанию `Sulafat`.
                       speed: { type: number, default: 1, minimum: 0.25, maximum: 4 }
-                      pitch: { type: number, default: 0, minimum: -20, maximum: 20 }
+                      pitch: { type: number, default: 0, minimum: -20, maximum: 20, description: "Только для голосов Yandex и Google (realtime=true)." }
                       file: { type: string, description: Base64 строка файла mp3/wav/ogg }
         scenario_id: { type: integer, description: "Обязательно если type=interactive." }
         agent_id:
