@@ -790,8 +790,8 @@ paths:
                         title:      { type: string, description: Название в личном кабинете, example: Айгерим }
                         gender:     { type: string, enum: [male, female] }
                         languages:  { type: array, items: { type: string }, description: "Языки голоса (kk, ru, en)" }
-                        provider:   { type: string, enum: [gemini, yandex, google] }
                         realtime:   { type: boolean, description: Годится ли для озвучки во время звонка }
+                        pitch:      { type: boolean, description: "Поддерживает ли голос параметр `pitch` (высота тона)" }
                         sample_url: { type: string, format: uri, description: Ссылка на сэмпл голоса }
               example:
                 default: Sulafat
@@ -800,15 +800,15 @@ paths:
                     title: Айгерим
                     gender: female
                     languages: [kk, ru, en]
-                    provider: gemini
                     realtime: false
+                    pitch: false
                     sample_url: https://autocall.kz/voices/tts-samples/Sulafat.m4a
                   - name: madi
                     title: Мади
                     gender: male
                     languages: [kk]
-                    provider: yandex
                     realtime: true
+                    pitch: true
                     sample_url: https://autocall.kz/voices/tts-samples/madi.m4a
         '401': { $ref: '#/components/responses/401' }
         '429': { $ref: '#/components/responses/429' }
@@ -906,7 +906,7 @@ paths:
                         maximum: 20
                         description: >
                           Если `type=synthesis`: высота тона.
-                          Работает только у голосов Yandex и Google (`realtime: true` в `GET /sounds/voices`).
+                          Работает только у голосов с `pitch: true` в `GET /sounds/voices`.
                           Новые голоса такого параметра не имеют, и для них значение игнорируется.
                       file:
                         type: string
@@ -3598,7 +3598,7 @@ components:
                         default: Sulafat
                         description: Идентификатор голоса из `GET /sounds/voices`. По умолчанию `Sulafat`.
                       speed: { type: number, default: 1, minimum: 0.25, maximum: 4 }
-                      pitch: { type: number, default: 0, minimum: -20, maximum: 20, description: "Только для голосов Yandex и Google (realtime=true)." }
+                      pitch: { type: number, default: 0, minimum: -20, maximum: 20, description: "Только для голосов с pitch=true в GET /sounds/voices." }
                       file: { type: string, description: Base64 строка файла mp3/wav/ogg }
         scenario_id: { type: integer, description: "Обязательно если type=interactive." }
         agent_id:
