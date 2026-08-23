@@ -792,6 +792,7 @@ paths:
                         languages:  { type: array, items: { type: string }, description: "Языки голоса (kk, ru, en)" }
                         realtime:   { type: boolean, description: Годится ли для озвучки во время звонка }
                         pitch:      { type: boolean, description: "Поддерживает ли голос параметр `pitch` (высота тона)" }
+                        emotions:   { type: boolean, description: "Понимает ли пометки эмоций в тексте — см. описание поля `text`" }
                         sample_url: { type: string, format: uri, description: Ссылка на сэмпл голоса }
               example:
                 default: Sulafat
@@ -802,6 +803,7 @@ paths:
                     languages: [kk, ru, en]
                     realtime: false
                     pitch: false
+                    emotions: true
                     sample_url: https://autocall.kz/voices/tts-samples/Sulafat.m4a
                   - name: madi
                     title: Мади
@@ -809,6 +811,7 @@ paths:
                     languages: [kk]
                     realtime: true
                     pitch: true
+                    emotions: false
                     sample_url: https://autocall.kz/voices/tts-samples/madi.m4a
         '401': { $ref: '#/components/responses/401' }
         '429': { $ref: '#/components/responses/429' }
@@ -882,7 +885,16 @@ paths:
                         type: string
                         minLength: 1
                         maxLength: 400
-                        description: "Если type=synthesis: текст для синтеза (обязательно)"
+                        description: >
+                          Если `type=synthesis`: текст для синтеза (обязательно).
+
+
+                          У голосов с `emotions: true` в тексте можно ставить подсказку интонации в
+                          квадратных скобках — она задаёт, КАК произнести следующую фразу, и вслух не
+                          читается: `Здравствуйте! [радостно] Ваш заказ уже в пути.`
+                          Подойдёт почти любое слово: радостно, грустно, шёпотом, устало, строго, смеюсь.
+                          У голосов с `emotions: false` такие пометки вырезаются перед синтезом —
+                          текст озвучится без них, ошибки не будет.
                       voice:
                         type: string
                         default: Sulafat
@@ -2553,68 +2565,125 @@ paths:
 
   /dashboard:
     get:
-      summary: Получить данные панели мониторинга
+      summary: Получить сводку аккаунта
       operationId: get-dashboard
       tags: [Панель мониторинга]
-      description: Возвращает сводные данные аккаунта — активные обзвоны, баланс, статистику за неделю и за всё время.
+      description: |
+        Баланс, замороженные средства, активные кампании и потребление за период.
+
+        Период задаётся параметрами `from` и `to`; по умолчанию — последние 30 дней,
+        максимум — 366 дней.
+
+        #### Что изменилось в 1.13
+        Ответ переписан. Прежняя версия отдавала `week_activity` (7 дней) и `full_activity`
+        (за всё время) и считала их прямым перебором таблицы звонков: у крупного аккаунта
+        запрос шёл около 24 секунд. Теперь данные приходят из суточной витрины, ответ —
+        единицы миллисекунд, а период задаёт клиент.
+
+        | Было | Стало |
+        |------|-------|
+        | `running&awaiting` | `campaigns.active` |
+        | `in_queue` | `campaigns.in_queue` |
+        | `week_activity` (7 дней) | `daily` (любой период) |
+        | `full_activity` (за всё время) | `totals` + `reasons` за период |
+        | `success` + `recalled` раздельно | `calls_answered` одной величиной |
+
+        ⚠️ Статистика доступна с **23 мая 2026** — за более ранние даты витрина пуста.
       parameters:
         - $ref: '#/components/parameters/ContentType'
         - $ref: '#/components/parameters/Accept'
+        - name: from
+          in: query
+          required: false
+          description: Начало периода, `YYYY-MM-DD`. По умолчанию — 29 дней назад.
+          schema: { type: string, format: date }
+          example: "2026-08-01"
+        - name: to
+          in: query
+          required: false
+          description: Конец периода, `YYYY-MM-DD`. По умолчанию — сегодня.
+          schema: { type: string, format: date }
+          example: "2026-08-22"
       responses:
         '200':
-          description: Объект с данными панели мониторинга.
+          description: Сводка аккаунта за период.
           content:
             application/json:
               schema:
                 type: object
-                required: ["running&awaiting", in_queue, reserved, balance, currency, week_activity, full_activity]
+                required: [balance, currency, reserved, campaigns, period, totals, reasons, daily]
                 properties:
-                  "running&awaiting":
-                    type: integer
-                    description: Количество активных обзвонов (статусы running + awaiting)
-                  in_queue:
-                    type: integer
-                    description: Количество номеров в очереди на звонок
-                  reserved:
-                    type: number
-                    description: Замороженная сумма
                   balance:
                     type: number
                     description: Текущий баланс
                   currency:
                     type: string
                     description: Символ валюты
-                  week_activity:
+                  reserved:
+                    type: number
+                    description: Заморожено под активными обзвонами и рассылками; возвращается по их завершении
+                  campaigns:
                     type: object
-                    description: Статистика по дням за последнюю неделю (ключ — дата Y-m-d)
-                    additionalProperties:
-                      $ref: '#/components/schemas/DayActivity'
-                  full_activity:
-                    $ref: '#/components/schemas/DayActivity'
+                    properties:
+                      active:
+                        type: integer
+                        description: Обзвонов в работе (running, awaiting, moderation, generating)
+                      in_queue:
+                        type: integer
+                        description: Номеров в очереди на звонок в этих обзвонах
+                  period:
+                    type: object
+                    properties:
+                      from: { type: string, format: date }
+                      to: { type: string, format: date }
+                  totals:
+                    $ref: '#/components/schemas/DashboardTotals'
+                  reasons:
+                    $ref: '#/components/schemas/DashboardReasons'
+                  daily:
+                    type: array
+                    description: Разбивка потребления по дням, включая дни без активности.
+                    items:
+                      $ref: '#/components/schemas/DashboardDay'
               example:
-                "running&awaiting": 3
-                in_queue: 145
-                reserved: 408.83
-                balance: 1450.75
+                balance: 158516.20
                 currency: "₸"
-                week_activity:
-                  "2024-11-01":
-                    all: 120
-                    success: 85
-                    recalled: 5
-                    no_answer: 22
-                    busy: 5
-                    error: 2
-                    spam: 1
-                full_activity:
-                  all: 5420
-                  success: 3850
-                  recalled: 210
-                  no_answer: 980
-                  busy: 280
-                  error: 85
-                  spam: 15
+                reserved: 0
+                campaigns:
+                  active: 2
+                  in_queue: 1450
+                period:
+                  from: "2026-07-24"
+                  to: "2026-08-22"
+                totals:
+                  calls_total: 831199
+                  calls_answered: 289167
+                  answer_rate: 34.8
+                  call_seconds: 2953661
+                  agent_seconds: 0
+                  records: 0
+                  sms_count: 31
+                  synthesis_count: 0
+                  recognition_count: 0
+                  flash_count: 0
+                reasons:
+                  busy: 167484
+                  no_answer: 342532
+                  error: 26749
+                  spam: 3570
+                daily:
+                  - date: "2026-08-21"
+                    calls_total: 41230
+                    calls_answered: 14884
+                    call_seconds: 146112
+                    agent_seconds: 0
+                    records: 0
+                    sms_count: 0
+                    synthesis_count: 0
+                    recognition_count: 0
+                    flash_count: 0
         '401': { $ref: '#/components/responses/401' }
+        '422': { $ref: '#/components/responses/422' }
         '429': { $ref: '#/components/responses/429' }
 
   # ─────────────────────────────────────────
@@ -3261,16 +3330,48 @@ components:
         to: { type: integer }
         total: { type: integer }
 
-    DayActivity:
+    DashboardTotals:
       type: object
+      description: Потребление за период. Источник — суточная витрина, те же цифры, что в личном кабинете.
       properties:
-        all: { type: integer, description: Всего звонков }
-        success: { type: integer, description: Успешно дозвонились }
-        recalled: { type: integer, description: Перезвонили сами }
-        no_answer: { type: integer, description: Нет ответа }
+        calls_total: { type: integer, description: Набрано номеров (без тестовых обзвонов) }
+        calls_answered: { type: integer, description: "Состоявшихся контактов: взяли трубку либо перезвонили сами" }
+        answer_rate:
+          type: [number, "null"]
+          description: Доля дозвона в процентах. `null`, если звонков не было — ноль читался бы как «звонили и не дозвонились».
+        call_seconds: { type: integer, description: Секунд разговора, включая перезвоны абонентов }
+        agent_seconds: { type: integer, description: Из них секунд разговора с ИИ-агентом }
+        records: { type: integer, description: Записей разговоров }
+        sms_count:
+          type: integer
+          description: SMS в тарифицируемых СЕГМЕНТАХ — длинное сообщение режется на несколько и столько же раз оплачивается.
+        synthesis_count: { type: integer, description: Синтезов речи }
+        recognition_count: { type: integer, description: Распознаваний речи }
+        flash_count: { type: integer, description: Flash Call }
+
+    DashboardReasons:
+      type: object
+      description: Почему не дозвонились. Сумма причин равна `calls_total − calls_answered`.
+      properties:
         busy: { type: integer, description: Занято }
-        error: { type: integer, description: Не существует }
-        spam: { type: integer, description: Пожаловались на спам }
+        no_answer: { type: integer, description: Не отвечает }
+        error: { type: integer, description: Номер недоступен или не существует }
+        spam: { type: integer, description: Абонент пожаловался на спам }
+
+    DashboardDay:
+      type: object
+      description: Потребление за один день. Дни без активности присутствуют с нулями.
+      properties:
+        date: { type: string, format: date }
+        calls_total: { type: integer }
+        calls_answered: { type: integer }
+        call_seconds: { type: integer }
+        agent_seconds: { type: integer }
+        records: { type: integer }
+        sms_count: { type: integer }
+        synthesis_count: { type: integer }
+        recognition_count: { type: integer }
+        flash_count: { type: integer }
 
     Contact:
       type: object
@@ -3592,7 +3693,7 @@ components:
                   data:
                     type: object
                     properties:
-                      text: { type: string, minLength: 1, maxLength: 400 }
+                      text: { type: string, minLength: 1, maxLength: 400, description: "Текст для синтеза. У голосов с emotions=true поддерживает подсказки интонации в квадратных скобках — см. POST /sounds." }
                       voice:
                         type: string
                         default: Sulafat
@@ -3630,20 +3731,20 @@ components:
         max_tries: { type: integer, default: 1, enum: [1, 2, 3, 4] }
         tries_interval: { type: integer, default: 60, enum: [15, 30, 60, 120] }
         date_from: { type: string, minLength: 10, maxLength: 10 }
-        sms: { type: boolean, default: false, description: Отправить SMS при успешном дозвоне? }
+        sms: { type: boolean, default: false, description: "Отправить SMS при успешном дозвоне?" }
         text:
           type: string
           description: |
             Текст SMS при успешном дозвоне (обязательно если `sms=true`).
             Поддерживает переменные контакта `{{varname}}` — например `Здравствуйте, {{name}}!`.
-        sms_unanswered: { type: boolean, default: false, description: Отправить SMS если не дозвонились? }
+        sms_unanswered: { type: boolean, default: false, description: "Отправить SMS если не дозвонились?" }
         text_unanswered:
           type: string
           description: |
             Текст SMS для недозвонившихся (обязательно если `sms_unanswered=true`).
             Поддерживает переменные контакта `{{varname}}`.
         lifetime: { type: boolean, default: false, description: Ждать перезвонивших абонентов }
-        record: { type: boolean, default: false, description: Записывать разговоры? }
+        record: { type: boolean, default: false, description: "Записывать разговоры?" }
         client_id: { type: string, maxLength: 60 }
         callback_url: { type: string, maxLength: 256 }
         caller_id:
