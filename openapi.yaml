@@ -14,7 +14,9 @@ info:
     ```
     Authorization: Bearer ВАШ_API_КЛЮЧ
     ```
-    API ключ доступен в разделе **Настройки → API** на портале autocall.kz.
+    API-ключи создаются в разделе **API** личного кабинета autocall.kz. Ключей может быть
+    несколько — например, отдельный для каждого проекта. Каждому ключу можно ограничить права
+    (какие методы API ему доступны) и список IP-адресов, с которых он принимается.
 
     ## Лимиты
     Ограничений два, и они независимы — сработает то, до которого дойдёте раньше.
@@ -47,17 +49,18 @@ info:
     Адрес приёмника задаётся двумя способами:
 
     - **Глобально** — в личном кабинете, **Настройки → API**, поле «Адрес для вебхуков».
-      Применяется ко всем обзвонам и рассылкам аккаунта, включая созданные вручную в кабинете.
+      Применяется ко всем обзвонам, рассылкам и Flash Call аккаунта, включая созданные вручную
+      в кабинете.
       Принимается только `https`.
-    - **Для конкретного обзвона или рассылки** — поле `callback_url` в теле запроса на
-      создание. Оно **перебивает** глобальный адрес: события по этому объекту уйдут только
+    - **Для конкретного обзвона, рассылки или Flash Call** — поле `callback_url` в теле
+      запроса на создание. Оно **перебивает** глобальный адрес: события по этому объекту уйдут только
       на него.
 
     Если не задано ни то, ни другое — вебхуки не отправляются.
 
     Мы шлём `POST` с `Content-Type: application/json` по мере изменения объектов:
     `{"call": {...}}` — про звонок, `{"autocall": {...}}` — про обзвон,
-    `{"message": {...}}` / `{"bulk": {...}}` — про SMS.
+    `{"message": {...}}` / `{"bulk": {...}}` — про SMS, `{"flash_call": {...}}` — про Flash Call.
 
     Что важно учесть при интеграции:
 
@@ -84,6 +87,10 @@ info:
       то, что уложилось в одну паузу. Статус доставки от оператора приходит минутами позже
       отправки, то есть заведомо за пределами паузы: это отдельный запрос, и так и
       задумано — новая информация, а не уточнение прежней.
+    - **Flash Call — ровно один запрос** на каждый flash: с окончательным статусом
+      (`delivered`, `failed` или `expired`), обычно через 15–30 секунд после `POST`.
+      Промежуточные `queued`/`dialing` не отправляются. Формат — как у
+      `GET /flash-calls/{id}`.
     - **События обзвона и рассылки не схлопываются.** Переходы `moderation → awaiting →
       running → completed` приходят отдельными запросами: это разные по смыслу
       состояния, разнесённые во времени.
@@ -188,6 +195,11 @@ tags:
         сейчас нет.
 
       Ограничение: не более 3 запросов на один номер за 5 минут, дальше `429`.
+
+      Дошёл ли звонок — `GET /flash-calls/{id}` или вебхук с `{"flash_call": {...}}`: `delivered`
+      (звонок дошёл до телефона — даже если его сбросили или было занято), `failed` (сеть не
+      дотянулась до абонента) или `expired` (не успели набрать за 2 минуты). При `failed` и
+      `expired` сразу отправляйте код другим способом, например SMS.
 
       ## ⚠️ Первый код уходит на проверку
 
@@ -3243,6 +3255,24 @@ paths:
         > Рекомендуется использовать Авто-код для гарантированной доставки.
 
         **Rate limit:** не более 3 попыток на один номер в течение 5 минут.
+
+        **Статус доставки.** Ответ `201` значит «принят в набор» (`status: queued`), а не «доставлен».
+        Итог — `GET /flash-calls/{id}` или вебхук на `callback_url` (свой в запросе или глобальный
+        из настроек). Статусы:
+
+        | status | значение |
+        |---|---|
+        | `queued` | ждёт набора |
+        | `dialing` | набираем |
+        | `delivered` | звонок дошёл до телефона: не ответили, сбросили, занято или ответили |
+        | `failed` | сеть не дотянулась до абонента (перегрузка, сбой, номер недоступен) — после одного автоматического повтора |
+        | `expired` | не набран за 2 минуты с момента запроса — код уже бесполезен |
+
+        В `reason` — исход звонка от сети (`NO ANSWER`, `BUSY`, `CONGESTION`…).
+        Списание — при `201`, независимо от итога.
+
+        **`503`** — сейчас нет связи для Flash Call. Деньги не списаны, в rate limit попытка не
+        засчитана: отправьте код другим способом или повторите позже.
       parameters:
         - $ref: '#/components/parameters/ContentType'
         - $ref: '#/components/parameters/Accept'
@@ -3280,6 +3310,13 @@ paths:
                   description: |
                     **Свой код**: числовой код от 3 до 6 цифр.
                     Обязательно если `digits` не передан.
+                callback_url:
+                  type: string
+                  maxLength: 256
+                  example: "https://example.com/flash-status"
+                  description: |
+                    Вебхук со статусом этого Flash Call. Не передан — используется глобальный
+                    адрес из настроек.
             examples:
               Авто-код из 4 цифр:
                 value:
@@ -3289,28 +3326,38 @@ paths:
                 value:
                   number: "+77010000000"
                   code: "7823"
+              С вебхуком:
+                value:
+                  number: "+77010000000"
+                  digits: 4
+                  callback_url: "https://example.com/flash-status"
       responses:
         '201':
-          description: Flash Call отправлен. Код подтверждения — последние N цифр поля `code`.
+          description: Flash Call принят в набор. Код подтверждения — последние N цифр поля `code`.
           content:
             application/json:
               schema:
                 type: object
-                required: [id, code, number]
+                required: [id, code, number, status]
                 properties:
                   id:
                     type: integer
-                    description: ID Flash Call записи
+                    description: ID Flash Call записи — для `GET /flash-calls/{id}`
                   code:
                     type: string
                     description: Код подтверждения (последние N цифр номера звонящего)
                   number:
                     type: string
                     description: Номер получателя
+                  status:
+                    type: string
+                    enum: [queued]
+                    description: Всегда `queued` — итог придёт позже
               example:
                 id: 1023
                 code: "7482"
                 number: "+77010000000"
+                status: queued
         '401': { $ref: '#/components/responses/401' }
         '402':
           description: Недостаточно средств на балансе.
@@ -3325,6 +3372,56 @@ paths:
               schema: { $ref: '#/components/schemas/ValidationError' }
         '429':
           description: Превышен rate limit — не более 3 попыток на один номер в течение 5 минут.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorMessage' }
+        '503':
+          description: |
+            Сейчас нет связи для Flash Call. Деньги не списаны, попытка в rate limit не засчитана.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorMessage' }
+              example:
+                message: "Сервис Flash Call временно недоступен. Попробуйте позже."
+
+  /flash-calls/{id}:
+    get:
+      summary: Статус Flash Call
+      operationId: get-flash-call
+      tags: [Flash Calls]
+      description: |
+        Текущий статус Flash Call. Окончательные статусы — `delivered`, `failed`, `expired`;
+        обычно итог известен через 15–30 секунд после `POST`. Опрашивайте не чаще раза в
+        2–3 секунды или используйте вебхук (`callback_url`) — он придёт с тем же телом.
+
+        У Flash Call, отправленных до 01.10.2026, `status` = `null`: статусов тогда не было.
+      parameters:
+        - $ref: '#/components/parameters/Accept'
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+          description: ID из ответа `POST /flash-calls`
+      responses:
+        '200':
+          description: Flash Call
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FlashCall' }
+              example:
+                id: 1023
+                number: "+77010000000"
+                code: "7482"
+                type: auto
+                status: delivered
+                reason: "NO ANSWER"
+                attempts: 1
+                cost: 6
+                created_at: "2026-10-01 12:00:00"
+                finished_at: "2026-10-01 12:00:16"
+        '401': { $ref: '#/components/responses/401' }
+        '404':
+          description: Flash Call не найден (или принадлежит другому аккаунту).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorMessage' }
@@ -3530,11 +3627,13 @@ components:
             message: "Unauthenticated."
     '403':
       description: |
-        Доступ к API закрыт состоянием аккаунта, а не правами на конкретный ресурс.
-        Различить причину можно по полю `reason`:
+        Запрос отклонён. Различить причину можно по полю `reason`:
 
         - `sms_not_verified` — номер телефона аккаунта не подтверждён;
-        - `account_blocked` — аккаунт заблокирован (чаще всего отрицательный баланс).
+        - `account_blocked` — аккаунт заблокирован (чаще всего отрицательный баланс);
+        - `api_key_scope` — этому API-ключу не разрешён вызванный метод (права ключа задаются
+          в разделе **API** личного кабинета);
+        - `api_key_ip` — запрос пришёл с адреса, которого нет в списке разрешённых IP ключа.
 
         Ключ при этом действителен: повторять запрос имеет смысл после устранения причины.
       content:
@@ -3586,6 +3685,29 @@ components:
         message:
           type: string
           description: Описание ошибки
+
+    FlashCall:
+      type: object
+      description: 'Flash Call — тело `GET /flash-calls/{id}` и вебхука `{"flash_call": {...}}`.'
+      properties:
+        id: { type: integer }
+        number: { type: string, description: Номер получателя }
+        code: { type: string, description: Код подтверждения }
+        type: { type: string, enum: [auto, own], description: "`auto` — код по `digits`, `own` — свой `code`" }
+        status:
+          type: [string, "null"]
+          enum: [queued, dialing, delivered, failed, expired, null]
+          description: |
+            `delivered` — звонок дошёл до телефона (не ответили, сбросили, занято или ответили);
+            `failed` — сеть не дотянулась до абонента, после одного автоматического повтора;
+            `expired` — не набран за 2 минуты. `null` — Flash Call отправлен до появления статусов.
+        reason:
+          type: [string, "null"]
+          description: Исход звонка от сети (`NO ANSWER`, `BUSY`, `ANSWERED`, `CONGESTION`, `FAILED`…)
+        attempts: { type: integer, description: Сколько раз набирали (0–2) }
+        cost: { type: [number, "null"], description: Списано за этот Flash Call, ₸ }
+        created_at: { type: string, example: "2026-10-01 12:00:00" }
+        finished_at: { type: [string, "null"], example: "2026-10-01 12:00:16", description: Когда статус стал окончательным }
 
     ValidationError:
       type: object
