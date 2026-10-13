@@ -253,13 +253,19 @@ POST запрос будет содержать JSON и иметь соотве�
 {
   "otp": {
     "id": 6,
-    "channel": "whatsapp", //telegram, incoming-call, sms
+    "channel": "whatsapp", //telegram || incoming-call || sms
     "number": "+77000000000",
     "code": "6630",
     "language": "ru",
     "brand": "AutoCall",
-    "brand_status": "approved", //
-    "status": "read",
+    "brand_status": "approved", // approved || pending || rejected
+    "status": "read", 
+    /*
+    `pending` — создан (у `incoming-call` — ждёт звонка); `sent` — отдан провайдеру; `delivered` — доставлен
+    (у `incoming-call` `listen`/`press`/`say` — абонент дозвонился, у `call` — ответил и прослушал код);
+    `read` — прочитан; `verified` — подтверждён (`POST /otp/{id}/check` или наша проверка во время входящего
+    звонка); `expired` — истёк `ttl` или заменён новым кодом; `failed` — не удался (см. `reason`).
+    */
     "reason": null,
     "cost": 13.5,
     "created_at": "2026-10-14 01:51:20",
