@@ -49,10 +49,10 @@ info:
     Адрес приёмника задаётся двумя способами:
 
     - **Глобально** — в личном кабинете, **Настройки → API**, поле «Адрес для вебхуков».
-      Применяется ко всем обзвонам, рассылкам и Flash Call аккаунта, включая созданные вручную
+      Применяется ко всем обзвонам, рассылкам, кодам подтверждения и Flash Call аккаунта, включая созданные вручную
       в кабинете.
       Принимается только `https`.
-    - **Для конкретного обзвона, рассылки или Flash Call** — поле `callback_url` в теле
+    - **Для конкретного обзвона, рассылки, кода или Flash Call** — поле `callback_url` в теле
       запроса на создание. Оно **перебивает** глобальный адрес: события по этому объекту уйдут только
       на него.
 
@@ -128,113 +128,70 @@ security:
 tags:
   - name: OTP — коды подтверждения
     description: |
-      Три способа доставить одноразовый код: SMS, голосовой звонок и Flash Call.
+      Один эндпоинт на все каналы: `POST /otp/{канал}`, где канал — `whatsapp`, `telegram`, `sms`
+      или `incoming-call`. Единые статусы, проверка кода и вебхук — меняется только канал в адресе.
 
-      Отдельных эндпоинтов у OTP нет — он собирается из уже существующих. Догадаться об этом,
-      не зная нашей модели данных, невозможно, поэтому здесь собрано всё, что нужно для
-      интеграции: SMS-код — это рассылка на один номер, голосовой код — обзвон одного контакта
-      с синтезом речи на лету, Flash Call — звонок, который сбрасывается, и кодом служит хвост
-      номера звонящего.
+      | канал | как доставляется | за что списываем |
+      |---|---|---|
+      | `whatsapp` | шаблон с кнопкой «Копировать код» от проверенного аккаунта AutoCall.kz | за доставленный (`delivered`) |
+      | `telegram` | официальный бот «Verification Codes» (Telegram Gateway) | за доставленный |
+      | `sms` | одна SMS от отправителя AUTOCALL | за отправленный (`sent`) |
+      | `incoming-call` | пользователь сам звонит на номер `call_to` из ответа | при выдаче номера |
 
-      ## 1. SMS OTP
+      ## Как это выглядит
 
-      `POST /bulks` — рассылка на один номер.
+      1. `POST /otp/whatsapp` с `number` → `201`, в ответе `id`, `code` и `status`.
+      2. Пользователь вводит код у вас → `POST /otp/{id}/check` с `code` → `{"valid": true}`.
+         Проверяйте код через `/check`, даже если `code` у вас уже есть из ответа: только так код станет
+         `verified`, а в журнале кабинета и на дашборде будет видно подтверждение и конверсию. Без `/check`
+         доставленный код через `ttl` станет `expired` — в журнале «Не проверен».
+      3. Статусы приходят вебхуком `{"otp": {...}}` на `callback_url` (из запроса или из настроек аккаунта)
+         на КАЖДЫЙ переход: `sent` → `delivered` → `read` → `verified`, или `expired` / `failed` с `reason`.
 
-      ```json
-      {
-        "name": "OTP",
-        "text": "Код подтверждения: 2134",
-        "list_id": [{ "number": "+77011234567" }]
-      }
-      ```
+      ## Входящий звонок (`incoming-call`)
 
-      - `name` — до 40 символов, служебное имя рассылки, абоненту НЕ отправляется;
-      - `text` — до 1600 символов; тарифицируется посегментно (70 символов кириллицей на сегмент);
-      - `list_id` — получатели; для OTP это всегда один номер.
+      Замена Flash Call и голосовых кодов: звонит сам пользователь, на номер `call_to` из ответа, со своего
+      номера `number`. Тип — поле `type`:
 
-      Статус доставки: `GET /bulks/{id}`.
+      | `type` | что происходит | кто проверяет |
+      |---|---|---|
+      | `missed` | маяк: сбрасываем звонок без ответа, для пользователя бесплатно | мы — вебхук `verified` |
+      | `listen` | отвечаем и диктуем код по шаблону языка | вы — `POST /otp/{id}/check` |
+      | `press` | вы показываете `code`, пользователь набирает его на клавиатуре | мы — вебхук |
+      | `say` | вы показываете `code` (цифры или слово), пользователь называет его вслух | мы — вебхук |
 
-      ## 2. Voice OTP (голосовой код)
+      Для `missed`, `press` и `say` нужен `callback_url` (в запросе или в настройках) — результат знаем только мы.
+      `language` — строка или список по порядку проигрывания: `["kk","ru"]`. `voice` — голос из
+      `GET /sounds/voices` (должен говорить на всех языках заявки). `say` распознаёт только `ru` и `kk`.
 
-      > ⚠️ **Прекращается с 1 ноября 2026 года.** Согласно п. 3-1 ст. 21 Закона РК «О связи»
-      > (в редакции Закона от 19.06.2026 № 320-VIII) с 20 августа 2026 года операторам связи запрещено
-      > пропускать автоматические вызовы для передачи кодов идентификации и аутентификации, в том числе
-      > прерывающиеся до или после первого гудка. Переведите подтверждение номера на SMS.
+      ## Каскад
 
-      `POST /autocalls` — обзвон одного контакта с синтезом речи.
+      Если канал недоступен, переключайтесь сами: Telegram отвечает сразу `422 no_telegram` (деньги не
+      списаны), WhatsApp — позже, вебхуком `failed` с `reason: no_whatsapp`. Новая заявка на тот же номер
+      закрывает предыдущую (`expired`, `reason: replaced`) — проверку пройдёт только последний код.
 
-      ```json
-      {
-        "name": "Код подтверждения",
-        "type": "regular",
-        "time_from": "00:00:00",
-        "time_to": "23:59:59",
-        "audio_id": [{
-          "type": "synthesis",
-          "data": { "text": "Ваш код подтверждения: 2 1 3 4.", "voice": "Sulafat" }
-        }],
-        "list_id": [{ "number": "+77011234567" }]
-      }
-      ```
+      ## Ограничения
 
-      ⚠️ **`time_from` и `time_to` обязаны покрывать текущий момент.** Иначе обзвон уйдёт в
-      статус `awaiting` и код будет озвучен, когда наступит указанное окно, — то есть завтра.
-      Для кодов подтверждения это всегда полные сутки, как в примере.
+      - Номера: пока только мобильные Казахстана `+7 7xx` (иначе `422 country_not_allowed`).
+      - **Лимит на номер: 5 кодов за 10 минут** — любые каналы вместе. Окно 10 минут отсчитывается от первого
+        кода на этот номер; шестой и следующие получают `429 too_many_requests` с `retry_after` — через сколько
+        секунд окно закончится. Отклонённые запросы тоже считаются. Лимит защищает абонента от «бомбёжки» кодами.
+      - 5 попыток проверки на код. У входящего `press` и `say` — 3 попытки в звонке, молчание тоже считается.
+      - `ttl` — от 30 до 300 секунд, по умолчанию 120.
+      - `brand` — название вашей компании в тексте, до 30 символов. Новое название один раз проверяет
+        модератор: пока идёт проверка, код уходит без него (`brand_status: pending`).
+      - `flash` в Казахстане отвечает `451 law_restricted` — п. 3-1 ст. 21 Закона РК «О связи». Код голосом
+        (`POST /otp/call`) устарел и оставлен для работающих интеграций — для новых берите `incoming-call`.
 
-      💡 **Пишите цифры кода через пробел** (`2 1 3 4`), иначе синтез произнесёт «две тысячи
-      сто тридцать четыре».
+      ## Наследие: SMS через рассылку, голос и Flash Call
 
-      Результат звонка: `GET /autocalls/{id}`.
+      До 1.16 код отправлялся рассылкой `POST /bulks` на один номер, голосом — обзвоном `POST /autocalls`
+      или `POST /flash-calls`. `/bulks` продолжает работать, но для кодов используйте `POST /otp/sms`:
+      у рассылки первая формулировка уходит на модерацию, а у `/otp/sms` текст фиксированный.
 
-      ## 3. Flash Call OTP
-
-      > ⚠️ **Прекращается с 1 ноября 2026 года.** Согласно п. 3-1 ст. 21 Закона РК «О связи»
-      > (в редакции Закона от 19.06.2026 № 320-VIII) с 20 августа 2026 года операторам связи запрещено
-      > пропускать автоматические вызовы для передачи кодов идентификации и аутентификации, в том числе
-      > прерывающиеся до или после первого гудка. Переведите подтверждение номера на SMS.
-
-      `POST /flash-calls` — звонок, который сбрасывается автоматически. Кодом служат последние
-      N цифр номера, с которого пришёл звонок. Для абонента звонок бесплатный.
-
-      ```json
-      { "number": "+77011234567", "digits": 4 }
-      ```
-
-      - `digits` (3–6) — код генерируем мы. Работает всегда, рекомендуемый режим;
-      - `code` — ваш конкретный код; ответ `422`, если свободного номера с таким окончанием
-        сейчас нет.
-
-      Ограничение: не более 3 запросов на один номер за 5 минут, дальше `429`.
-
-      Дошёл ли звонок — `GET /flash-calls/{id}` или вебхук с `{"flash_call": {...}}`: `delivered`
-      (звонок дошёл до телефона — даже если его сбросили или было занято), `failed` (сеть не
-      дотянулась до абонента) или `expired` (не успели набрать за 2 минуты). При `failed` и
-      `expired` сразу отправляйте код другим способом, например SMS.
-
-      ## ⚠️ Первый код уходит на проверку
-
-      Это главная причина обращений «ваш API не работает».
-
-      У нового аккаунта первая SMS-рассылка и первый голосовой обзвон попадают на модерацию и
-      ждут человека — обычно в пределах рабочего дня. После того как формулировку одобрили,
-      коды с тем же текстом отправляются **мгновенно и без проверки**: сам код в шаблоне
-      подменяется на «любые 4–6 цифр», поэтому каждый новый код под одобрение уже подходит.
-
-      Отсюда практическое правило: **не меняйте формулировку без нужды** — новый текст
-      возвращает проверку. Flash Call модерации не знает вообще, текста в нём нет.
-
-      ## ⚠️ Бренды в тексте
-
-      Упоминание стороннего бренда в SMS проверку не проходит — это требование операторов, а не
-      наше. «Код подтверждения: 2134» проходит всегда.
-
-      ## Что выбрать
-
-      | | Скорость | Цена | Когда брать |
-      |---|---|---|---|
-      | SMS | секунды | дешёвая | по умолчанию |
-      | Голос | ~30 секунд | дороже SMS | когда SMS не доходят или нужен звонок |
-      | Flash Call | секунды | дешевле SMS | массовая верификация, код не нужно читать вслух |
+      > ⚠️ **Голосовые коды и Flash Call прекращаются с 1 ноября 2026 года.** Согласно п. 3-1 ст. 21 Закона
+      > РК «О связи» (в редакции Закона от 19.06.2026 № 320-VIII) с 20 августа 2026 года операторам связи
+      > запрещено пропускать автоматические вызовы для передачи кодов. Замена — `POST /otp/incoming-call`.
 
   - name: Публичный API
     description: Эндпоинты без аутентификации — тарифы и тестовый звонок.
@@ -987,7 +944,7 @@ paths:
                       type: object
                       properties:
                         name:       { type: string, description: "Значение для поля `voice`", example: Sulafat }
-                        title:      { type: string, description: Название в личном кабинете, example: Айгерим }
+                        title:      { type: string, description: "Название в личном кабинете: у голосов Gemini — их настоящее имя", example: Sulafat }
                         gender:     { type: string, enum: [male, female] }
                         languages:  { type: array, items: { type: string }, description: "Языки голоса (kk, ru, en)" }
                         realtime:   { type: boolean, description: Годится ли для озвучки во время звонка }
@@ -998,7 +955,7 @@ paths:
                 default: Sulafat
                 data:
                   - name: Sulafat
-                    title: Айгерим
+                    title: Sulafat
                     gender: female
                     languages: [kk, ru, en]
                     realtime: false
@@ -3250,6 +3207,347 @@ paths:
   # FLASH CALLS
   # ─────────────────────────────────────────
 
+  /otp/{channel}:
+    post:
+      summary: Отправить код подтверждения
+      operationId: post-otp
+      tags: [OTP — коды подтверждения]
+      description: |
+        Создаёт заявку и сразу отправляет код. Ответ `201` значит «принято»: для мессенджеров — отправлено
+        провайдеру, для `incoming-call` — номер `call_to` выдан и ждёт звонка. Дальше — вебхук или
+        `GET /otp/{id}`.
+
+        Ошибки — `{"error": "<код>", "message": "..."}`: ветвитесь по `error`, а не по тексту.
+      parameters:
+        - $ref: '#/components/parameters/ContentType'
+        - $ref: '#/components/parameters/Accept'
+        - name: channel
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [whatsapp, telegram, sms, incoming-call, flash]
+          description: Канал. `flash` в Казахстане отвечает `451`. Код голосом — отдельно, `POST /otp/call` (устарел).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OtpCreate' }
+            examples:
+              WhatsApp — свой код, русский, без бренда:
+                value:
+                  number: "+77010000000"
+                  code: "4821"
+                  language: ru
+              WhatsApp — с названием компании, казахский:
+                value:
+                  number: "+77010000000"
+                  brand: "Clinic Plus"
+                  language: kk
+                  callback_url: "https://example.kz/otp-hook"
+              Telegram — свой код:
+                value:
+                  number: "+77010000000"
+                  code: "582914"
+              SMS — с названием компании:
+                value:
+                  number: "+77010000000"
+                  brand: "Clinic Plus"
+                  language: ru
+                  custom_id: "login-77"
+              Входящий звонок — маяк (missed):
+                value:
+                  number: "+77010000000"
+                  type: missed
+                  callback_url: "https://example.kz/otp-hook"
+              Входящий звонок — прослушать код (listen):
+                value:
+                  number: "+77010000000"
+                  type: listen
+                  code: "4821"
+                  voice: Kore
+              Входящий звонок — набрать код (press), два языка:
+                value:
+                  number: "+77010000000"
+                  type: press
+                  language: [kk, ru]
+                  callback_url: "https://example.kz/otp-hook"
+              Входящий звонок — назвать слово (say):
+                value:
+                  number: "+77010000000"
+                  type: say
+                  code: "Домино"
+                  callback_url: "https://example.kz/otp-hook"
+      responses:
+        '201':
+          description: Код отправлен (или номер для входящего звонка выдан).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Otp' }
+              examples:
+                WhatsApp:
+                  value:
+                    id: 1042
+                    channel: whatsapp
+                    number: "+77010000000"
+                    code: "4821"
+                    language: kk
+                    brand: "Clinic Plus"
+                    brand_status: approved
+                    status: sent
+                    reason: null
+                    cost: null
+                    created_at: "2026-11-02 10:00:00"
+                    sent_at: "2026-11-02 10:00:01"
+                    expires_at: "2026-11-02 10:02:00"
+                Входящий звонок:
+                  value:
+                    id: 1045
+                    channel: incoming-call
+                    type: press
+                    number: "+77010000000"
+                    code: "4821"
+                    call_to: "+77470940670"
+                    language: [kk, ru]
+                    voice: Sulafat
+                    status: pending
+                    reason: null
+                    cost: 4
+                    created_at: "2026-11-02 10:00:00"
+                    expires_at: "2026-11-02 10:02:00"
+        '401': { $ref: '#/components/responses/401' }
+        '402':
+          description: Недостаточно средств (`insufficient_balance`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OtpError' }
+        '422':
+          description: |
+            Ошибка валидации полей (стандартный `{"message", "errors"}`) или отказ канала:
+            `no_telegram` — у номера нет Telegram (деньги не списаны), `invalid_number` — провайдер не принял номер,
+            `country_not_allowed`, `callback_url_required`, `language_not_supported` (`say` с `en`), `voice_not_found`,
+            `voice_language_mismatch`, `channel_unavailable` (нет цены канала в тарифе; если канал не подключён — `503`).
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/OtpError'
+                  - $ref: '#/components/schemas/ValidationError'
+              example:
+                error: no_telegram
+                message: "У этого номера нет Telegram. Отправьте код другим каналом."
+        '429':
+          description: |
+            Больше 5 кодов на номер за 10 минут (`too_many_requests`, окно — от первого кода, `retry_after` — секунд
+            до его конца) или временный лимит провайдера (WhatsApp/Telegram просят слать реже, `retry_after` — секунды).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OtpError' }
+              example:
+                error: too_many_requests
+                message: "Слишком много кодов на этот номер. Попробуйте позже."
+                retry_after: 600
+        '451':
+          description: '`flash` в Казахстане запрещён законом (`law_restricted`).'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OtpError' }
+        '503':
+          description: Провайдер не ответил (`provider_unavailable`) — повторите или смените канал.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OtpError' }
+
+  /otp/call:
+    post:
+      summary: Код голосом — звонок абоненту (устарел)
+      operationId: post-otp-call
+      deprecated: true
+      tags: [OTP — коды подтверждения]
+      description: |
+        ⚠️ **Устарел.** Звонки с кодом подтверждения ограничены п. 3-1 ст. 21 Закона РК «О связи». Метод оставлен
+        для уже работающих интеграций; для новых используйте `incoming-call` — абонент звонит сам, и это законно.
+
+        Мы звоним на `number` и голосом зачитываем код дважды: «Ваш код подтверждения: 4 8 2 1. Повторяю: …».
+        Абонент вводит его у вас, вы проверяете через `POST /otp/{id}/check`. Поля — как у остальных каналов:
+        `code` / `code_length`, `language` (строкой или списком — зачитаем на каждом языке по очереди), `voice`
+        (из `GET /sounds/voices`, по умолчанию Sulafat), одобренный `brand` («Ваш код для Clinic Plus: …»), `ttl`.
+
+        Статусы: `pending` → `sent` (набираем) → `delivered` (абонент ответил, код прозвучал) → `verified`.
+        Не ответил — `failed` с `reason`: `no_answer`, `busy` (занято или сбросил), `not_delivered` (номер
+        недоступен). Повторно не звоним.
+
+        Цена — как у звонков по тарифу, в два приёма: синтез — сразу при создании (озвучка сделана, даже если абонент
+        не ответит), секунды разговора — только если абонент ответил.
+        Перед звонком проверяем, что на балансе хватит на типичный звонок (~12 секунд).
+      parameters:
+        - $ref: '#/components/parameters/ContentType'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OtpCreate' }
+            examples:
+              Свой код, без бренда:
+                value:
+                  number: "+77010000000"
+                  code: "4821"
+                  language: ru
+              С названием компании, два языка:
+                value:
+                  number: "+77010000000"
+                  code: "4821"
+                  brand: "Clinic Plus"
+                  language: [kk, ru]
+                  voice: Sulafat
+      responses:
+        '201':
+          description: Звонок поставлен в очередь.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Otp' }
+              example:
+                id: 1050
+                channel: call
+                number: "+77010000000"
+                code: "4821"
+                language: [kk, ru]
+                voice: Sulafat
+                status: pending
+                reason: null
+                cost: null
+                created_at: "2026-11-02 10:00:00"
+                expires_at: "2026-11-02 10:02:00"
+        '401': { $ref: '#/components/responses/401' }
+        '402':
+          description: Недостаточно средств (`insufficient_balance`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OtpError' }
+        '422':
+          description: |
+            Ошибка валидации полей, `country_not_allowed`, `voice_not_found`, `voice_language_mismatch`,
+            `number_blocked` — абонент запретил звонки с сервиса (спам-список), денег не списано.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/OtpError'
+                  - $ref: '#/components/schemas/ValidationError'
+        '429':
+          description: Больше 5 кодов на номер за 10 минут (`too_many_requests`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OtpError' }
+        '503':
+          description: Не удалось подготовить звонок (`provider_unavailable`) — повторите или смените канал.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OtpError' }
+
+  /otp:
+    get:
+      summary: Журнал кодов
+      operationId: get-otp-list
+      tags: [OTP — коды подтверждения]
+      description: Коды аккаунта от новых к старым, с фильтрами. Тот же журнал — в кабинете, раздел «OTP».
+      parameters:
+        - $ref: '#/components/parameters/Accept'
+        - { name: channel, in: query, schema: { type: string, enum: [whatsapp, telegram, sms, incoming-call, call] } }
+        - { name: status, in: query, schema: { type: string, enum: [pending, sent, delivered, read, verified, expired, failed] } }
+        - { name: number, in: query, schema: { type: string }, description: 'Точный номер, +7XXXXXXXXXX' }
+        - { name: from, in: query, schema: { type: string, format: date-time }, description: Создан не раньше }
+        - { name: to, in: query, schema: { type: string, format: date-time }, description: Создан не позже }
+        - { name: per_page, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Страница журнала (пагинация Laravel, коды — в `data`).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Otp' }
+                  current_page: { type: integer }
+                  per_page: { type: integer }
+                  total: { type: integer }
+        '401': { $ref: '#/components/responses/401' }
+
+  /otp/{id}:
+    get:
+      summary: Статус кода
+      operationId: get-otp
+      tags: [OTP — коды подтверждения]
+      description: 'То же тело, что приходит вебхуком в `{"otp": {...}}`.'
+      parameters:
+        - $ref: '#/components/parameters/Accept'
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Код
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Otp' }
+        '401': { $ref: '#/components/responses/401' }
+        '404':
+          description: Не найден (или принадлежит другому аккаунту).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OtpError' }
+
+  /otp/{id}/check:
+    post:
+      summary: Проверить введённый код
+      operationId: post-otp-check
+      tags: [OTP — коды подтверждения]
+      description: |
+        Сверяет код, который ввёл пользователь. Не больше 5 попыток на код (у входящего `press` и `say` — 3) — дальше `failed` с
+        `reason: too_many_attempts`. Истёкший код (`ttl`) не проходит. Для `incoming-call` типов `missed`,
+        `press` и `say` проверяем мы сами — ждите вебхук `verified`. У `press` и `say` `/check` тоже сработает
+        (код у вас есть), но тогда звонок пользователя не нужен — не используйте это вместо звонка.
+
+        Вызывайте `/check`, даже если сверяете код у себя (он есть в ответе на `POST`): иначе код не станет
+        `verified`, и в журнале и на дашборде подтверждения не будет — только «Не проверен».
+      parameters:
+        - $ref: '#/components/parameters/ContentType'
+        - $ref: '#/components/parameters/Accept'
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, maxLength: 32, example: "4821" }
+      responses:
+        '200':
+          description: Результат сверки
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid: { type: boolean }
+                  status: { type: string, description: Статус кода после проверки }
+                  attempts_left: { type: integer }
+              examples:
+                Верно:
+                  value: { valid: true, status: verified, attempts_left: 4 }
+                Неверно:
+                  value: { valid: false, status: delivered, attempts_left: 3 }
+        '401': { $ref: '#/components/responses/401' }
+        '404':
+          description: Не найден.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OtpError' }
+
   /flash-calls:
     post:
       summary: Отправить Flash Call
@@ -3571,6 +3869,36 @@ paths:
   # СПИСКИ КОНТАКТОВ
   # ─────────────────────────────────────────
 
+webhooks:
+  otp:
+    post:
+      summary: Статус кода подтверждения
+      description: |
+        На КАЖДЫЙ переход статуса кода — POST на `callback_url` из запроса или глобальный из настроек аккаунта.
+        Ключ верхнего уровня `otp` отличает его от `call`, `bulk` и `flash_call`.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                otp: { $ref: '#/components/schemas/Otp' }
+            example:
+              otp:
+                id: 1045
+                channel: incoming-call
+                type: press
+                number: "+77010000000"
+                status: verified
+                reason: null
+                cost: 4
+                created_at: "2026-11-02 10:00:00"
+                verified_at: "2026-11-02 10:00:41"
+                expires_at: "2026-11-02 10:02:00"
+      responses:
+        '200':
+          description: Любой 2xx — принято.
+
 components:
 
   securitySchemes:
@@ -3704,6 +4032,98 @@ components:
         message:
           type: string
           description: Описание ошибки
+
+    Otp:
+      type: object
+      description: 'Код подтверждения — тело ответа `POST /otp/{channel}`, `GET /otp/{id}` и вебхука `{"otp": {...}}`.'
+      properties:
+        id: { type: integer }
+        channel: { type: string, enum: [whatsapp, telegram, sms, incoming-call, call] }
+        type: { type: string, enum: [missed, listen, press, say], description: 'Только у `incoming-call`' }
+        number: { type: string, example: "+77010000000" }
+        code: { type: [string, "null"], description: 'Код. У `incoming-call` типа `missed` — null. У `say` может быть словом' }
+        call_to: { type: string, description: 'Только `incoming-call`: номер, на который должен позвонить пользователь' }
+        language:
+          oneOf:
+            - { type: string, enum: [ru, kk, en] }
+            - { type: array, items: { type: string, enum: [ru, kk, en] } }
+        voice: { type: string, description: 'Голос звонка (`incoming-call`, кроме `missed`; `call`)' }
+        brand: { type: string }
+        brand_status: { type: string, enum: [approved, pending, rejected], description: 'В текст попадает только `approved`' }
+        status:
+          type: string
+          enum: [pending, sent, delivered, read, verified, expired, failed]
+          description: |
+            `pending` — создан (у `incoming-call` — ждёт звонка); `sent` — отдан провайдеру; `delivered` — доставлен
+            (у `incoming-call` `listen`/`press`/`say` — абонент дозвонился, у `call` — ответил и прослушал код);
+            `read` — прочитан; `verified` — подтверждён (`POST /otp/{id}/check` или наша проверка во время входящего
+            звонка); `expired` — истёк `ttl` или заменён новым кодом; `failed` — не удался (см. `reason`).
+        reason:
+          type: [string, "null"]
+          enum: [replaced, not_delivered, too_many_attempts, no_whatsapp, no_telegram, invalid_number, revoked, provider_error, no_answer, busy, null]
+        cost: { type: [number, "null"], description: 'Списано, ₸. null — ещё не списано' }
+        custom_id: { type: string, description: Ваш идентификатор из запроса }
+        created_at: { type: string, example: "2026-11-02 10:00:00" }
+        sent_at: { type: string }
+        delivered_at: { type: string }
+        read_at: { type: string }
+        verified_at: { type: string }
+        expires_at: { type: string, example: "2026-11-02 10:02:00" }
+
+    OtpCreate:
+      type: object
+      required: [number]
+      properties:
+        number:
+          type: string
+          pattern: '^\+\d{10,15}$'
+          example: "+77010000000"
+          description: E.164. Пока принимаются только мобильные номера Казахстана +7 7xx.
+        code:
+          type: string
+          description: |
+            Свой код, 4–8 цифр. Не передан — генерируем (`code_length`). У `incoming-call` типа `say` можно слово
+            из 2–30 букв («Домино»). У `missed` не нужен.
+        code_length: { type: integer, minimum: 4, maximum: 8, default: 6 }
+        type:
+          type: string
+          enum: [missed, listen, press, say]
+          description: Обязателен для `incoming-call`.
+        language:
+          description: 'Язык текста или голоса. Список — порядок проигрывания в звонке; текстовые каналы берут первый.'
+          oneOf:
+            - { type: string, enum: [ru, kk, en], default: ru }
+            - { type: array, items: { type: string, enum: [ru, kk, en] }, uniqueItems: true }
+        voice: { type: string, description: 'Голос `incoming-call` и `call` — имя из `GET /sounds/voices`, по умолчанию Sulafat' }
+        brand:
+          type: string
+          maxLength: 30
+          description: |
+            Название вашей компании. Новое один раз проверяет модератор, до одобрения код уходит без него
+            (`brand_status: pending`). Где звучит: WhatsApp и SMS — в тексте; `incoming-call` `listen` и `call` —
+            в фразе с кодом; `incoming-call` `press` и `say` — в начале подсказки («Подтверждение для Clinic Plus.
+            Наберите код…»). У Telegram и маяка (`missed`) не используется.
+        ttl: { type: integer, minimum: 30, maximum: 300, default: 120, description: Сколько секунд код действует }
+        callback_url:
+          type: string
+          maxLength: 256
+          description: |
+            Вебхук `{"otp": {...}}` на каждую смену статуса. Только `https://` и только публичный адрес вашего сервера:
+            внутренние адреса (192.168.x, 10.x, 127.x, localhost), несуществующий домен и адреса autocall.kz → `422`.
+            Не передан — берётся общий адрес из настроек аккаунта.
+        custom_id: { type: string, maxLength: 64, description: Ваш идентификатор — вернётся в ответах и вебхуке }
+
+    OtpError:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Машинный код — ветвитесь по нему
+          example: no_telegram
+        message: { type: string }
+        retry_after: { type: integer, description: 'Для `429`: через сколько секунд можно снова' }
+        retryable: { type: boolean }
 
     FlashCall:
       type: object
@@ -3915,9 +4335,13 @@ components:
       type: object
       properties:
         name: { type: string, description: "Значение для поля `voice` при создании агента", example: Sulafat }
-        display: { type: string, description: Как голос называется в личном кабинете, example: Асель }
+        display: { type: string, description: Как голос называется в личном кабинете — настоящее имя голоса, example: Sulafat }
+        provider: { type: string, description: Провайдер голоса, example: gemini }
+        provider_title: { type: string, description: Как провайдер подписан в личном кабинете, example: Gemini }
         gender: { type: string, enum: [male, female] }
-        characteristic: { type: [string, "null"], description: Краткое описание тембра/манеры }
+        characteristic: { type: [string, "null"], description: Краткое описание тембра/манеры, example: Тёплый }
+        category: { type: [string, "null"], description: Категория голоса у провайдера, example: Tutor }
+        category_title: { type: [string, "null"], description: Категория по-русски, example: Наставник }
         sample: { type: string, description: Ссылка на аудиофрагмент голоса }
         avatar: { type: string, description: Ссылка на аватар голоса }
         has_avatar: { type: boolean }
