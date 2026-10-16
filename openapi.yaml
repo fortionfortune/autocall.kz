@@ -3619,6 +3619,9 @@ paths:
     post:
       summary: Создать OTP
       operationId: post-otp
+      x-badges:
+        - label: "new"
+          color: "brightgreen"
       tags:
         - OTP — коды подтверждения
       description: |
