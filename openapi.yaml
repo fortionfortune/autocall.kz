@@ -39,7 +39,7 @@ info:
       2–3 потока быстрее, чем 20 потоков, половина которых получает `429`.
     - Систематическое превышение серверного лимита может привести к временной
       блокировке адреса. Если ваша интеграция требует большего — напишите в
-      поддержку, лимит поднимут точечно для вашего IP адреса. 
+      поддержку, лимит поднимут точечно для вашего IP адреса.
 
     ## Форматы дат
     - Дата: `Y-m-d` (например: `2024-03-15`)
@@ -96,15 +96,43 @@ tags:
       ## Каскад
 
       Если канал недоступен, переключайтесь сами: Telegram отвечает сразу `422 no_telegram` (деньги не
-      списаны), WhatsApp — позже, вебхуком `failed` с `reason: no_whatsapp`. Новая заявка на тот же номер
-      закрывает предыдущую (`expired`, `reason: replaced`) — проверку пройдёт только последний код.
+      списаны), WhatsApp — позже, вебхуком `failed` с `reason: no_whatsapp`. После такого ответа следующие 12 часов
+      код в этот мессенджер на этот номер сразу получает `422 no_telegram` или `422 no_whatsapp`. Новая заявка на
+      тот же номер закрывает предыдущую (`expired`, `reason: replaced`) — проверку пройдёт только последний код.
 
       ## Ограничения
 
-      - Номера: пока только мобильные Казахстана `+7 7xx` (иначе `422 country_not_allowed`).
+      - Номера — строго E.164 (`+` и цифры, без пробелов, скобок и `8` в начале). Мобильные Казахстана `+7 7xx` —
+        все каналы. Мобильные России, Узбекистана, Кыргызстана, Таджикистана, Туркменистана, Азербайджана, Армении,
+        Беларуси, Молдовы, Украины и Грузии — только `whatsapp` и `telegram`: SMS и входящий звонок туда не идут. Городские номера других стран и остальные страны —
+        `422 country_not_allowed`; если страна наша, а канал нет, в ответе будут `country` и `channels` — куда
+        переключиться.
+      - **Цена кода за рубеж.** Telegram — та же, что в Казахстане. WhatsApp — Meta берёт по стране получателя, поэтому
+        цена = ваша цена кода WhatsApp × коэффициент страны, вверх до 0,5 ₸ (наценка та же, что в Казахстане).
+        Списываем, как и в Казахстане, только за доставленный код:
+
+        | страна | коэффициент | BRONZE | SILVER | GOLD |
+        |---|---|---|---|---|
+        | Казахстан | 1 | 19,5 ₸ | 13,5 ₸ | 11 ₸ |
+        | Россия | 2,22 | 43,5 ₸ | 30 ₸ | 24,5 ₸ |
+        | Азербайджан, Армения, Беларусь, Грузия, Молдова, Украина | 1,18 | 23 ₸ | 16 ₸ | 13 ₸ |
+        | Узбекистан, Таджикистан, Туркменистан | 0,63 | 12,5 ₸ | 8,5 ₸ | 7 ₸ |
+        | Кыргызстан | 0,43 | 8,5 ₸ | 6 ₸ | 5 ₸ |
       - **Лимит на номер: 5 кодов за 10 минут** — любые каналы вместе. Окно 10 минут отсчитывается от первого
         кода на этот номер; шестой и следующие получают `429 too_many_requests` с `retry_after` — через сколько
         секунд окно закончится. Отклонённые запросы тоже считаются. Лимит защищает абонента от «бомбёжки» кодами.
+      - **WhatsApp и Telegram: пауза 2 минуты, 10 невведённых и 20 любых кодов в сутки.** Следующий код в тот же
+        мессенджер на тот же номер — не раньше чем через 120 секунд после предыдущего (`429 resend_too_soon` с
+        `retry_after`). За сутки на номер уходит не больше 10 невведённых кодов в каждый мессенджер и не больше 20
+        кодов вместе с введёнными. Оба потолка общие для всех клиентов autocall (`429 daily_limit` с `retry_after`).
+        Введённый код (`verified`) паузу снимает и в потолок невведённых не идёт, неотправленный (нет WhatsApp или
+        Telegram, сбой) не считается нигде. Если код в мессенджер не пришёл, повтор туда же почти никогда не
+        помогает: предлагайте пользователю SMS или входящий звонок. SMS пауза и потолки не касаются.
+      - **Нет WhatsApp или Telegram — помним 12 часов.** Если провайдер ответил, что у номера нет мессенджера
+        (`no_whatsapp` в вебхуке, `no_telegram` сразу), следующие 12 часов новый код туда на этот номер получает
+        `422 no_whatsapp` или `422 no_telegram` без запроса к провайдеру. Деньги не списаны, в лимиты не идёт.
+      - Если абонент запретил вашему аккаунту звонить и писать ему (жалоба на спам), коды на его номер не уходят
+        ни одним каналом: `422 number_blocked`, деньги не списаны.
       - 5 попыток проверки на код. У входящего `press` и `say` — 3 попытки в звонке, молчание тоже считается.
       - `ttl` — от 30 до 300 секунд, по умолчанию 120.
       - `brand` — название вашей компании в тексте, до 30 символов. Новое название один раз проверяет
@@ -423,6 +451,34 @@ tags:
       - **Свой код** (`code`) — вы передаёте нужный код. Может вернуть 422 если нужного номера нет в пуле.
 
       **Rate limit:** не более 3 попыток на один номер в течение 5 минут.
+  - name: Номерной пул
+    description: Номера, которые вы арендуете у нас для звонков (Caller ID) и для входящих линий.
+  - name: Мои АТС
+    description: |
+      Ваши АТС и SIP-учётки, подключённые в кабинете (раздел «Телефония» → «АТС»). Через API — только список: из него
+      берут `user_pbx_id` для обзвона через свою станцию. Подключают и настраивают АТС в кабинете — там проверка связи.
+
+      Вид (`kind`, с 1.17):
+
+      | kind | что это |
+      |---|---|
+      | `ip` | АТС по белому IP: мы шлём звонки на её адрес, она узнаёт нас по адресу |
+      | `account` | SIP-учётка у провайдера (Tele2, IDPhone, Zadarma…): мы регистрируемся у провайдера под вашим логином и звоним как его клиент |
+      | `registers` | ваша АТС регистрируется у нас: логин и пароль выдаём мы, адрес АТС может меняться |
+  - name: Входящие линии
+    description: |
+      Входящая линия (с 1.17) принимает звонки на арендованный у нас номер или через вашу АТС и транк и отдаёт их агенту,
+      сценарию или сотрудникам. Через API — список, включить или выключить и журнал звонков. Создают и настраивают линию
+      в кабинете: раздел «Телефония» → «Входящие».
+
+      Звонок линии — тот же объект, что звонок обзвона: `GET /calls/{id}`, расшифровка — `GET /calls/{id}/transcript`,
+      запись — `playback_url`. О каждом звонке уходит вебхук на `callback_url` линии или аккаунта, как у обзвонов.
+      Кто из сотрудников ответил — `variables.answered_by` (внутренний номер).
+  - name: Сотрудники
+    description: |
+      Внутренние номера AutoCall (с 1.17): сотрудник принимает звонки линий и переводы агента в софтфоне или в браузере и
+      звонит сам через вашу АТС. Через API — список с состоянием регистрации и журнал исходящих. Заводят сотрудника и
+      выдают ему пароль SIP в кабинете: пароль показывается один раз и через API не отдаётся.
 paths:
   # ─────────────────────────────────────────
   # ПУБЛИЧНЫЙ API (без авторизации)
@@ -528,10 +584,13 @@ paths:
                     properties:
                       number:
                         type: string
-                        minLength: 12
-                        maxLength: 12
-                        pattern: '^\+7(700|701|702|705|707|708|747|771|775|776|777|778|710|711|712|713|714|715|716|717|718|721|722|723|724|725|726|727|728|729|736)\d{7}$'
-                        description: Номер телефона в формате +7XXXXXXXXXX
+                        minLength: 9
+                        maxLength: 16
+                        pattern: '^\+[1-9]\d{7,14}$'
+                        description: |
+                          Номер в формате E.164 любой страны: `+77011234567`, `+79123456789`, `+998901234567`
+                          (с 1.17). Номера не из Казахстана звонят только через свою АТС или транк (`user_pbx_id`
+                          в обзвоне): через наши линии такие звонки сразу получают статус `error`, SMS на них не уходят.
                       extra:
                         type: string
                         maxLength: 255
@@ -744,9 +803,9 @@ paths:
                     properties:
                       number:
                         type: string
-                        minLength: 12
-                        maxLength: 12
-                        pattern: '^\+7(700|701|702|705|707|708|747|771|775|776|777|778|710|711|712|713|714|715|716|717|718|721|722|723|724|725|726|727|728|729|736)\d{7}$'
+                        minLength: 9
+                        maxLength: 16
+                        pattern: '^\+[1-9]\d{7,14}$'
                       extra:
                         type: string
                         maxLength: 255
@@ -1863,10 +1922,20 @@ paths:
         - `agent` — живой разговор с голосовым ИИ-агентом (нужен `agent_id`)
 
         В `list_id` можно передавать как ID существующих списков, так и объекты с номерами напрямую (будет создан автоматический список).
+        Номера — E.164 любой страны (с 1.17). Номера не из Казахстана звонят только через свою АТС (`user_pbx_id`):
+        через наши линии они сразу получают статус `error`, а в ответе `201` приходит поле `warnings` с их количеством.
         В `audio_id` можно передавать как ID существующих аудиозаписей, так и объекты для создания новых (синтез или загрузка).
 
         Если общее количество номеров ≤ 5000 — ответ `201` (создан сразу).
         Если > 5000 — ответ `202` (создаётся в фоне).
+
+        **Деньги (с 1.17).** `max_cost` — сколько обзвон стоит в худшем случае: каждый абонент ответил и дослушал до конца,
+        получил SMS, номер уже набирали сегодня (платный повтор), а сценарий с циклом пройден дважды. Сразу замораживаем
+        не весь максимум, а ожидаемую стоимость (`reserved`): до 10 контактов — весь `max_cost`, дальше долю, которую
+        обычно тратят такие обзвоны. Если обзвон идёт дороже, доморазиваем с баланса по ходу. Если денег не хватает,
+        новые звонки не начинаются, и через 15 минут без пополнения звонки в очереди получают статус `cancelled`,
+        а обзвон завершается как обычно. `402` — на балансе меньше, чем первая заморозка. Сколько заморозим, заранее
+        покажет `POST /autocalls/calculate`.
       parameters:
         - $ref: '#/components/parameters/ContentType'
         - $ref: '#/components/parameters/Accept'
@@ -1895,8 +1964,8 @@ paths:
                   переменными каждый раз проверяется заново, и OTP будет ждать модератора при
                   каждой отправке.
 
-                  **Время.** Окно `time_from`–`time_to` ограничено вашим тарифом (см. профиль).
-                  Для OTP проверьте, что оно покрывает часы, когда вашим клиентам нужен код.
+                  **Время.** Не передали `time_from`–`time_to` — обзвон звонит круглые сутки (с 1.17 окна у тарифа
+                  нет).
 
                   `max_tries: 1` — повторный звонок с тем же кодом через час обычно бесполезен:
                   код к тому времени истёк. Вместо повтора — SMS с кодом тем, кто не ответил.
@@ -2029,6 +2098,17 @@ paths:
           description: 'Обзвон принят в обработку (более 5000 номеров, создаётся в фоне).'
         '401':
           $ref: '#/components/responses/401'
+        '402':
+          description: На балансе меньше, чем первая заморозка обзвона (`reserved` из `POST /autocalls/calculate`).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              example:
+                message: Недостаточно средств
         '403':
           description: Обзвон отклонён из-за подозрения в спаме (слишком много номеров с короткой аудиозаписью).
           content:
@@ -2173,7 +2253,10 @@ paths:
       operationId: post-autocalls-calculate
       tags:
         - Обзвоны
-      description: 'Рассчитывает максимальную стоимость обзвона до его создания. Принимает те же параметры, что и создание обзвона.'
+      description: |
+        Рассчитывает стоимость обзвона до его создания. Принимает те же параметры, что и создание обзвона.
+        `max_cost` — стоимость в худшем случае, `reserved` — сколько заморозим при создании (с 1.17). Для создания
+        на балансе должно быть не меньше `reserved`.
       parameters:
         - $ref: '#/components/parameters/ContentType'
         - $ref: '#/components/parameters/Accept'
@@ -2185,18 +2268,24 @@ paths:
               $ref: '#/components/schemas/AutocallCreate'
       responses:
         '201':
-          description: Максимальная стоимость обзвона.
+          description: Максимальная стоимость обзвона и первая заморозка.
           content:
             application/json:
               schema:
                 type: object
                 required:
                   - max_cost
+                  - reserved
                 properties:
                   max_cost:
                     type: number
+                    description: Стоимость в худшем случае, ₸. С 1.17 включает запись разговора, если она включена.
+                  reserved:
+                    type: number
+                    description: Сколько заморозим при создании, ₸ (умный резерв, с 1.17).
               example:
                 max_cost: 245.6
+                reserved: 245.6
         '401':
           $ref: '#/components/responses/401'
         '403':
@@ -2448,6 +2537,7 @@ paths:
       description: |
         Создаёт новую SMS рассылку.
         В `list_id` можно передавать ID существующих списков или объекты с номерами напрямую (максимум 5000).
+        SMS уходят только на мобильные номера Казахстана: остальные номера в рассылку не попадают.
         Для большего количества — сначала создайте список контактов через `/lists`.
 
         #### Персонализация через переменные `{{varname}}`
@@ -2557,9 +2647,7 @@ paths:
                   переменными проверяется заново при каждой отправке — OTP будет ждать модератора
                   каждый раз.
 
-                  ⚠️ Отправка идёт в пределах окна вашего тарифа (`time_from`–`time_to` в
-                  профиле). Вне окна сообщение сразу не уйдёт — для OTP это критично, проверьте
-                  окно заранее.
+                  Окна отправки у тарифа нет (с 1.17): без `date_from` и `time_from` рассылка уходит сразу.
                 value:
                   name: OTP
                   text: 'Ваш код подтверждения: 3075. Никому его не сообщайте.'
@@ -3013,7 +3101,7 @@ paths:
                   type: string
                   minLength: 12
                   maxLength: 12
-                  pattern: '^\+7(700|701|702|705|707|708|747|771|775|776|777|778)\d{7}$'
+                  pattern: '^\+7(700|701|702|705|706|707|708|747|771|775|776|777|778)\d{7}$'
                   example: '+77020000001'
                   description: Номер для добавления (шаг 1)
                 verification_code:
@@ -3619,24 +3707,21 @@ paths:
     post:
       summary: Создать OTP
       operationId: post-otp
-      x-badges:
-        - label: "new"
-          color: "brightgreen"
       tags:
         - OTP — коды подтверждения
       description: |
         Создаёт заявку и сразу отправляет код по выбранному каналу. Чтобы отследить статус вам нужно поймать веб-хук (задаётся через `callback_url`) либо
         опрашивать через `GET /otp/{id}`.
-        
-        По каналам `whatsapp`, `telegram` и `sms` всё понятно - пользователю отправляется код. 
-        
+
+        По каналам `whatsapp`, `telegram` и `sms` всё понятно - пользователю отправляется код.
+
         Канал `incoming-call` работает по разному в зависимости от `type` внутри запроса.
         Независимо от `type` при выборе канала `incoming-call` - мы отдаём вам случайный номер в `call_to`, который вам необходимо отобразить пользователю в кнопке `<a href="tel:${call_to}">Позвонить для авторизации</a>`.
-        Если пользователь не позвонит в течение `ttl` секунд (по умолчанию 120) со своего номера (параметр `number`), то номер `call_to` станет недействительным, 
+        Если пользователь не позвонит в течение `ttl` секунд (по умолчанию 120) со своего номера (параметр `number`), то номер `call_to` станет недействительным,
         статус станет `expired` и к вам придет соответствующий веб-хук.
 
-        `"type": "missed"` - 
-        Как только пользователь позвонит на номер `call_to` со своего номера - статус станет `verified` и к вам отправится веб-хук. На звонок мы специально не будем отвечать, то есть пользователь услышит "Занято" и такой звонок будет бесплатным для него. 
+        `"type": "missed"` -
+        Как только пользователь позвонит на номер `call_to` со своего номера - статус станет `verified` и к вам отправится веб-хук. На звонок мы специально не будем отвечать, то есть пользователь услышит "Занято" и такой звонок будет бесплатным для него.
 
         `"type": "listen"` - Пользователь звонит на `call_to` - его встречает автоответчик на нужном вам языке, произносит ваш бренд при необходимости, и отчётливо **проговаривает ваш код два раза**. Пользователю необходимо будет ввести этот код в вашем приложении.
 
@@ -3652,7 +3737,6 @@ paths:
         - Одна активная заявка на номер у клиента. Новая успешная заявка гасит предыдущую: статус `expired`, причина `replaced`. Её `call_to` перестаёт работать.
         - `"type": "press"` и `"type": "say"`: **3** попытки во время звонка, молчание тоже считается за попытку. После третьей ошибки статус будет `failed`.
 
-        
       parameters:
         - $ref: '#/components/parameters/ContentType'
         - $ref: '#/components/parameters/Accept'
@@ -3668,7 +3752,8 @@ paths:
               - incoming-call
               - flash
               - call
-          description: Укажите через какой канал нужно отправить OTP? Канал `flash` и `call` запрещены законом и могут вернуть ошибку  `451`.
+          description:
+            Укажите через какой канал нужно отправить OTP? Канал `flash` и `call` запрещены законом и могут вернуть ошибку  `451`.
             Канал `incoming-call` - это законная замена каналу `flash` - звонок к пользователю не отправляется, а мы ждем звонка от пользователя.
       requestBody:
         required: true
@@ -3782,8 +3867,10 @@ paths:
         '422':
           description: |
             Ошибка валидации полей (стандартный `{"message", "errors"}`) или отказ канала:
-            `no_telegram` — у номера нет Telegram (деньги не списаны), `invalid_number` — провайдер не принял номер,
-            `country_not_allowed`, `callback_url_required`, `language_not_supported` (`say` с `en`), `voice_not_found`,
+            `no_telegram` — у номера нет Telegram (деньги не списаны), `no_whatsapp` — за последние 12 часов WhatsApp
+            уже сообщил, что у номера его нет (деньги не списаны), `invalid_number` — провайдер не принял номер,
+            `country_not_allowed` (номер не мобильный в E.164, страны нет в списке, или канал не идёт в эту страну —
+            тогда с `country` и `channels`), `callback_url_required`, `language_not_supported` (`say` с `en`), `voice_not_found`,
             `voice_language_mismatch`, `channel_unavailable` (нет цены канала в тарифе; если канал не подключён — `503`).
           content:
             application/json:
@@ -3798,6 +3885,10 @@ paths:
           description: |
             Больше 5 кодов на номер за 10 минут (`too_many_requests`, окно — от первого кода, `retry_after` — секунд
             до его конца) или временный лимит провайдера (WhatsApp/Telegram просят слать реже, `retry_after` — секунды).
+            Только WhatsApp и Telegram: `resend_too_soon` — прошло меньше 2 минут с вашего прошлого кода в этот
+            мессенджер на этот номер; `daily_limit` — на номер за сутки ушло 10 невведённых или 20 любых кодов в этот
+            мессенджер (общие потолки всех клиентов). В обоих случаях `retry_after` — секунд до снятия; лучше сразу
+            предложить SMS или входящий звонок.
           content:
             application/json:
               schema:
@@ -3818,6 +3909,207 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OtpError'
+  /pbx:
+    get:
+      operationId: get-pbx
+      tags:
+        - Мои АТС
+      summary: Список АТС
+      description: Ваши АТС и SIP-учётки. Удалённые не показываются. Логины и пароли не отдаются.
+      parameters:
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Список АТС.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Pbx'
+        '401':
+          $ref: '#/components/responses/401'
+  /lines:
+    get:
+      operationId: get-lines
+      tags:
+        - Входящие линии
+      summary: Список входящих линий
+      description: Включённые и выключенные линии. Удалённые остаются в кабинете в архиве и здесь не показываются.
+      parameters:
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Список линий.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InboundLine'
+        '401':
+          $ref: '#/components/responses/401'
+  '/lines/{id}':
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      operationId: get-line
+      tags:
+        - Входящие линии
+      summary: Линия
+      parameters:
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Линия.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboundLine'
+        '401':
+          $ref: '#/components/responses/401'
+        '404':
+          $ref: '#/components/responses/404'
+    put:
+      operationId: put-line
+      tags:
+        - Входящие линии
+      summary: Включить или выключить линию
+      description: |
+        Выключенная линия звонки не принимает: звонящий на наш номер услышит, что линия временно недоступна, звонок
+        через вашу АТС получит отказ. Остальные настройки линии меняются в кабинете.
+      parameters:
+        - $ref: '#/components/parameters/Accept'
+        - $ref: '#/components/parameters/ContentType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - enabled
+              properties:
+                enabled:
+                  type: boolean
+            example:
+              enabled: false
+      responses:
+        '200':
+          description: Линия после изменения.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboundLine'
+        '401':
+          $ref: '#/components/responses/401'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+  '/lines/{id}/calls':
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      operationId: get-line-calls
+      tags:
+        - Входящие линии
+      summary: Звонки линии
+      description: |
+        Звонки на линию, новые сверху, по 50 на страницу. Объект звонка — как у обзвона (`GET /calls/{id}`): `number` —
+        кто звонил, `status` — `success` (приняли) или `no_answer`, `duration` — секунды разговора, `data` — что прошёл
+        по сценарию и что записал агент, `variables.answered_by` — внутренний номер сотрудника, который ответил.
+      parameters:
+        - $ref: '#/components/parameters/Accept'
+        - $ref: '#/components/parameters/DateFrom'
+        - $ref: '#/components/parameters/DateTo'
+        - $ref: '#/components/parameters/Order'
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Страница звонков.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Pagination'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Call'
+        '401':
+          $ref: '#/components/responses/401'
+        '404':
+          $ref: '#/components/responses/404'
+  /extensions:
+    get:
+      operationId: get-extensions
+      tags:
+        - Сотрудники
+      summary: Список сотрудников
+      description: Внутренние номера с состоянием регистрации софтфона или браузера. Пароли SIP не отдаются.
+      parameters:
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Список сотрудников.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Extension'
+        '401':
+          $ref: '#/components/responses/401'
+  '/extensions/{id}/calls':
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      operationId: get-extension-calls
+      tags:
+        - Сотрудники
+      summary: Исходящие звонки сотрудника
+      description: |
+        Звонки, которые сотрудник сделал сам, новые сверху, по 50 на страницу. Входящие, которые он принял, — в журнале
+        линии (`GET /lines/{id}/calls`, поле `variables.answered_by`).
+      parameters:
+        - $ref: '#/components/parameters/Accept'
+        - $ref: '#/components/parameters/DateFrom'
+        - $ref: '#/components/parameters/DateTo'
+        - $ref: '#/components/parameters/Order'
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: Страница звонков.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Pagination'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ExtensionCall'
+        '401':
+          $ref: '#/components/responses/401'
+        '404':
+          $ref: '#/components/responses/404'
   /otp:
     get:
       summary: Получить историю всех OTP
@@ -3934,10 +4226,10 @@ paths:
 
         Например, вы отправили OTP через WhatsApp. Пользователь получил код, и мы отметили его статусом `delivered`. Затем он ввёл код в вашем приложении и успешно авторизовался. Всё хорошо, все счастливы, но AutoCall.kz об этом не знает, т.к. результат проверки остался на вашей стороне. Поэтому по истечении `ttl` (по умолчанию — 120 секунд) мы меняем статус на `expired`.
 
-        Если при проверке вы передадите введённый код по этому методу и он окажется верным, то мы отметим его статусом `verified`. 
-        
-        При `"type": "missed"`, `"type": "press"` и `"type": "say"` - передавать сюда ничего не нужно, т.к. мы сами выставим статус `verified`. 
-        
+        Если при проверке вы передадите введённый код по этому методу и он окажется верным, то мы отметим его статусом `verified`.
+
+        При `"type": "missed"`, `"type": "press"` и `"type": "say"` - передавать сюда ничего не нужно, т.к. мы сами выставим статус `verified`.
+
         Если статус уже стал `expired` - передача правильного кода по этому методу не переведёт статус в `verified`.
       parameters:
         - $ref: '#/components/parameters/ContentType'
@@ -4006,6 +4298,9 @@ paths:
         > (в редакции Закона от 19.06.2026 № 320-VIII) с 20 августа 2026 года операторам связи запрещено
         > пропускать автоматические вызовы для передачи кодов идентификации и аутентификации, в том числе
         > прерывающиеся до или после первого гудка. Переведите подтверждение номера на SMS, WhatsApp, Telegram или входящий звонок.
+        >
+        > С 1 ноября 2026 года, 00:00 (UTC+5), запрос отвечает `451 law_restricted`. Заявки, принятые до этой минуты,
+        > но не набранные до неё, закрываются `failed` с `reason: LAW`, деньги за них возвращаются на баланс.
 
         Совершает Flash Call на указанный номер. Последние N цифр номера звонящего — это код подтверждения.
         Звонок автоматически сбрасывается, биллинг на стороне абонента не возникает.
@@ -4146,6 +4441,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorMessage'
+        '451':
+          description: |
+            С 1 ноября 2026 года Flash Call в Казахстане запрещён (п. 3-1 ст. 21 Закона РК «О связи»).
+            Деньги не списаны. Отправляйте коды через `POST /otp/{channel}`.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: law_restricted
+                  message:
+                    type: string
+              example:
+                error: law_restricted
+                message: 'Flash Call запрещён в Казахстане с 1 ноября 2026 года (п. 3-1 ст. 21 Закона «О связи»). Отправляйте коды через POST /api/v1/otp/{channel}: whatsapp, telegram, sms или incoming-call.'
         '503':
           description: |
             Сейчас нет связи для Flash Call. Деньги не списаны, попытка в rate limit не засчитана.
@@ -4567,19 +4879,19 @@ components:
             - expired
             - failed
           description: |
-            `pending` — создан (у `incoming-call` — ждёт звонка); 
-            
-            `sent` — отдан провайдеру; 
-            
+            `pending` — создан (у `incoming-call` — ждёт звонка);
+
+            `sent` — отдан провайдеру;
+
             `delivered` — доставлен (у `incoming-call` `listen`/`press`/`say` — абонент дозвонился, у `call` — ответил и прослушал код);
-            
-            `read` — прочитан; 
-            
+
+            `read` — прочитан;
+
             `verified` — подтверждён (`POST /otp/{id}/check` или наша проверка во время входящего
-            звонка); 
-            
-            `expired` — истёк `ttl` или заменён новым кодом; 
-            
+            звонка);
+
+            `expired` — истёк `ttl` или заменён новым кодом;
+
             `failed` — не удался (см. `reason`).
         reason:
           type:
@@ -4628,7 +4940,10 @@ components:
           type: string
           pattern: '^\+\d{10,15}$'
           example: '+77010000000'
-          description: E164. Принимаются только мобильные номера Казахстана.
+          description: |
+            Строго E.164: `+` и цифры, без пробелов и `8` в начале. Казахстан `+7 7xx` — все каналы; мобильные России,
+            Узбекистана, Кыргызстана, Таджикистана, Туркменистана, Азербайджана, Армении, Беларуси, Молдовы, Украины
+            и Грузии — только `whatsapp` и `telegram`.
         code:
           type: string
           description: |
@@ -4649,7 +4964,7 @@ components:
             - say
           description: Обязателен для `incoming-call`.
         language:
-          description: Язык текста или голоса. Строка либо массив. 
+          description: Язык текста или голоса. Строка либо массив.
           oneOf:
             - type: string
               enum:
@@ -4873,11 +5188,10 @@ components:
           description: 'Доля дозвона в процентах. `null`, если звонков не было — ноль читался бы как «звонили и не дозвонились».'
         call_seconds:
           type: integer
-          description: Секунд разговора
-          включая перезвоны абонентов: null
+          description: Секунд разговора, включая перезвоны абонентов
         agent_seconds:
           type: integer
-          description: Из них секунд разговора с ИИ-агентом
+          description: Из них секунд, пока говорил ИИ-агент — в обзвонах «ИИ-агент» и в сценариях с элементом «ИИ-агент»
         records:
           type: integer
           description: Записей разговоров
@@ -5520,11 +5834,27 @@ components:
           type:
             - number
             - string
+          description: Стоимость в худшем случае, ₸.
+        reserved:
+          type:
+            - number
+            - string
+          description: 'Сколько заморожено на обзвон сейчас, ₸: первая заморозка плюс доморозки по ходу (с 1.17). После завершения резерв возвращается, списывается `final_cost`.'
+        spent:
+          type:
+            - number
+            - string
+          description: 'Сколько потрачено по ходу обзвона, ₸ (с 1.17). Оценка: итог считается при завершении, это `final_cost`.'
         final_cost:
           type:
             - number
             - string
             - 'null'
+        stopped:
+          type: string
+          enum:
+            - no_funds
+          description: 'Только в вебхуке завершения: обзвон завершён, потому что 15 минут не было денег, и звонки в очереди получили статус `cancelled` (с 1.17). Если обзвон завершился сам, поля нет.'
         topup_cost:
           type:
             - number
@@ -5556,14 +5886,16 @@ components:
           maxLength: 40
         time_from:
           type: string
-          default: '12:00:00'
+          default: '00:00:00'
           minLength: 8
           maxLength: 8
+          description: 'Начало окна звонков, H:i:s по Астане. Без обоих полей — круглые сутки (с 1.17).'
         time_to:
           type: string
-          default: '18:00:00'
+          default: '23:59:59'
           minLength: 8
           maxLength: 8
+          description: 'Конец окна звонков, H:i:s. Передавайте вместе с time_from.'
         type:
           type: string
           enum:
@@ -5716,7 +6048,8 @@ components:
           type: integer
           nullable: true
           description: |
-            Звонить через вашу собственную АТС, подключённую в разделе «Мои АТС».
+            Звонить через вашу собственную АТС, подключённую в разделе «Мои АТС». Список и `id` — `GET /pbx`; подходит
+            АТС любого вида (`ip`, `account`, `registers`).
 
             Если не указан или `null` — обзвон идёт через нашу связь и тарифицируется по обычной
             цене секунды. С указанной АТС связь оплачиваете вы своему оператору, а с нас —
@@ -6103,10 +6436,12 @@ components:
           description: Включена ли модерация
         time_from:
           type: string
-          description: С какого времени разрешены рассылки/обзвоны
+          deprecated: true
+          description: 'Устарело (1.17): окна у аккаунта нет, всегда 00:00:00. Окно задаётся в самом обзвоне.'
         time_to:
           type: string
-          description: До какого времени разрешены рассылки/обзвоны
+          deprecated: true
+          description: 'Устарело (1.17): окна у аккаунта нет, всегда 23:59:59.'
         price:
           type: string
           description: Тариф — стоимость за секунду обзвона (₸)
@@ -6133,7 +6468,7 @@ components:
           description: Подписка на новости через звонки
         notifications_subscribe:
           type: boolean
-          description: Дублирование уведомлений через SMS
+          description: 'Включены ли SMS-уведомления хоть в одной группе. С 1.17 канал по умолчанию — тот, которым подтвердили номер: у подтвердивших через WhatsApp или звонком здесь false, уведомления идут туда.'
         visit_card_audio:
           type:
             - integer
@@ -6172,6 +6507,194 @@ components:
               type: integer
             sms:
               type: integer
+    Pbx:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Его передают в `user_pbx_id` обзвона.
+        name:
+          type: string
+        kind:
+          type: string
+          enum:
+            - ip
+            - account
+            - registers
+          description: 'ip — АТС по IP; account — SIP-учётка у провайдера; registers — АТС регистрируется у нас (с 1.17).'
+        target:
+          type: string
+          description: 'Куда идут звонки, словами: адрес АТС (`ip`), «учётка у <провайдер>» (`account`) или «регистрируется у нас» (`registers`). Логины не показываются.'
+          example: 'pbx.example.kz:5060'
+        enabled:
+          type: boolean
+        max_channels:
+          type: integer
+          description: Сколько звонков одновременно мы отдаём на эту АТС.
+        dial_format:
+          type: string
+          enum:
+            - e164
+            - plain
+            - eight
+          description: 'В каком виде номер уходит на станцию: `e164` — `+77011234567`, `plain` — `77011234567`, `eight` — `87011234567` (за рубеж `810…`). Тот же вид у номера абонента при переводе на станцию (с 1.17).'
+        city_code:
+          type:
+            - string
+            - 'null'
+          description: 'Код своего города (`7172`, `727`): номера этого города уходят на станцию без кода, 6 или 7 цифр, а номер звонящего из 6–7 цифр дописывается кодом. null — все номера полностью.'
+          example: '7172'
+        state:
+          type: string
+          enum:
+            - up
+            - down
+            - unknown
+          description: 'Что видит наш SIP-сервер: up — отвечает или зарегистрирована, down — нет, unknown — ещё проверяем.'
+        last_seen_at:
+          type:
+            - string
+            - 'null'
+          description: Когда последний раз была на связи.
+        created_at:
+          type: string
+    InboundLine:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        enabled:
+          type: boolean
+        source:
+          type: string
+          enum:
+            - number
+            - pbx
+          description: 'number — наш арендованный номер (`number`), pbx — ваша АТС или транк (`user_pbx_id`).'
+        number:
+          type:
+            - string
+            - 'null'
+          example: '+77172000000'
+        user_pbx_id:
+          type:
+            - integer
+            - 'null'
+        did:
+          type:
+            - string
+            - 'null'
+          description: 'У линии с АТС — номер станции, на который звонят: номер телефона в E.164 или короткий номер цифрами. null — все остальные звонки станции.'
+          example: '2000'
+        target:
+          type: string
+          enum:
+            - agent
+            - scenario
+            - extensions
+          description: 'Кто отвечает: ИИ-агент (`agent_id`), сценарий (`scenario_id`), сотрудник (`extension_ids`) или группа сотрудников в её порядке вызова (`extension_group_id`).'
+        agent_id:
+          type:
+            - integer
+            - 'null'
+        scenario_id:
+          type:
+            - integer
+            - 'null'
+        extension_ids:
+          type: array
+          items:
+            type: integer
+        extension_group_id:
+          type:
+            - integer
+            - 'null'
+          description: Группа сотрудников, которой звонит линия.
+        record:
+          type: boolean
+          description: Записывать разговоры.
+        callback_url:
+          type:
+            - string
+            - 'null'
+          description: Свой адрес вебхука линии. Пусто — уходит на адрес из настроек аккаунта.
+        created_at:
+          type: string
+    Extension:
+      type: object
+      properties:
+        id:
+          type: integer
+        number:
+          type: string
+          example: '101'
+        name:
+          type: string
+        kind:
+          type: string
+          enum:
+            - softphone
+            - browser
+          description: 'softphone — софтфон по SIP (TLS), browser — оператор в браузере (раздел «Оператор»).'
+        enabled:
+          type: boolean
+        outbound:
+          type: string
+          enum:
+            - none
+            - pbx
+          description: 'none — звонит только коллегам; pbx — наружу через вашу АТС (`user_pbx_id`). Через наши номера сотрудники наружу не звонят.'
+        user_pbx_id:
+          type:
+            - integer
+            - 'null'
+        blocked:
+          type: boolean
+          description: Заблокирован за подозрительные звонки — разблокировка в кабинете.
+        blocked_reason:
+          type:
+            - string
+            - 'null'
+        registered:
+          type: boolean
+          description: Софтфон или вкладка браузера сейчас на связи.
+        registered_at:
+          type:
+            - string
+            - 'null'
+          description: Когда последний раз регистрировался.
+    ExtensionCall:
+      type: object
+      properties:
+        id:
+          type: integer
+        number:
+          type: string
+          description: Кому звонил — номер или внутренний номер коллеги.
+        route:
+          type: string
+          enum:
+            - pbx
+            - ext
+          description: 'pbx — через вашу АТС (по цене `own_pbx_price` за секунду), ext — коллеге (бесплатно).'
+        status:
+          type: string
+          enum:
+            - calling
+            - success
+            - no_answer
+            - busy
+            - error
+        duration:
+          type: integer
+          description: Секунды разговора.
+        cost:
+          type: number
+          description: Сколько стоил звонок, ₸.
+        created_at:
+          type: string
     Transaction:
       type: object
       properties:
