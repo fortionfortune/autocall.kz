@@ -452,7 +452,7 @@ tags:
 
       **Rate limit:** не более 3 попыток на один номер в течение 5 минут.
   - name: Номерной пул
-    description: Номера, которые вы арендуете у нас для звонков (Caller ID) и для входящих линий.
+    description: Номера, которые вы арендуете у нас для звонков (Caller ID) и для входящих маршрутов.
   - name: Мои АТС
     description: |
       Ваши АТС и SIP-учётки, подключённые в кабинете (раздел «Телефония» → «АТС»). Через API — только список: из него
@@ -465,19 +465,20 @@ tags:
       | `ip` | АТС по белому IP: мы шлём звонки на её адрес, она узнаёт нас по адресу |
       | `account` | SIP-учётка у провайдера (Tele2, IDPhone, Zadarma…): мы регистрируемся у провайдера под вашим логином и звоним как его клиент |
       | `registers` | ваша АТС регистрируется у нас: логин и пароль выдаём мы, адрес АТС может меняться |
-  - name: Входящие линии
+  - name: Маршруты
     description: |
-      Входящая линия (с 1.17) принимает звонки на арендованный у нас номер или через вашу АТС и транк и отдаёт их агенту,
-      сценарию или сотрудникам. Через API — список, включить или выключить и журнал звонков. Создают и настраивают линию
-      в кабинете: раздел «Телефония» → «Входящие».
+      Входящий маршрут (с 1.17) принимает звонки на арендованный у нас номер или через вашу АТС и транк и отдаёт их агенту,
+      сценарию или сотрудникам. Через API — список, включить или выключить и журнал звонков. Создают и настраивают маршруты
+      в кабинете: раздел «Телефония» → «Маршруты». Исходящие маршруты (по каким номерам и через какую АТС звонят
+      сотрудники) пока настраиваются только в кабинете.
 
-      Звонок линии — тот же объект, что звонок обзвона: `GET /calls/{id}`, расшифровка — `GET /calls/{id}/transcript`,
-      запись — `playback_url`. О каждом звонке уходит вебхук на `callback_url` линии или аккаунта, как у обзвонов.
-      Кто из сотрудников ответил — `variables.answered_by` (внутренний номер).
+      Звонок входящего маршрута — тот же объект, что звонок обзвона: `GET /calls/{id}`, расшифровка —
+      `GET /calls/{id}/transcript`, запись — `playback_url`. О каждом звонке уходит вебхук на `callback_url` маршрута или
+      аккаунта, как у обзвонов. Кто из сотрудников ответил — `variables.answered_by` (внутренний номер).
   - name: Сотрудники
     description: |
-      Внутренние номера AutoCall (с 1.17): сотрудник принимает звонки линий и переводы агента в софтфоне или в браузере и
-      звонит сам через вашу АТС. Через API — список с состоянием регистрации и журнал исходящих. Заводят сотрудника и
+      Внутренние номера AutoCall (с 1.17): сотрудник принимает звонки входящих маршрутов и переводы агента в софтфоне или
+      в браузере и звонит сам через вашу АТС по исходящим маршрутам. Через API — список с состоянием регистрации и журнал исходящих. Заводят сотрудника и
       выдают ему пароль SIP в кабинете: пароль показывается один раз и через API не отдаётся.
 paths:
   # ─────────────────────────────────────────
@@ -3929,27 +3930,27 @@ paths:
                   $ref: '#/components/schemas/Pbx'
         '401':
           $ref: '#/components/responses/401'
-  /lines:
+  /routes/inbound:
     get:
-      operationId: get-lines
+      operationId: get-inbound-routes
       tags:
-        - Входящие линии
-      summary: Список входящих линий
-      description: Включённые и выключенные линии. Удалённые остаются в кабинете в архиве и здесь не показываются.
+        - Маршруты
+      summary: Список входящих маршрутов
+      description: Включённые и выключенные маршруты. Удалённые остаются в кабинете в архиве и здесь не показываются.
       parameters:
         - $ref: '#/components/parameters/Accept'
       responses:
         '200':
-          description: Список линий.
+          description: Список маршрутов.
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/InboundLine'
+                  $ref: '#/components/schemas/InboundRoute'
         '401':
           $ref: '#/components/responses/401'
-  '/lines/{id}':
+  '/routes/inbound/{id}':
     parameters:
       - name: id
         in: path
@@ -3957,31 +3958,31 @@ paths:
         schema:
           type: integer
     get:
-      operationId: get-line
+      operationId: get-inbound-route
       tags:
-        - Входящие линии
-      summary: Линия
+        - Маршруты
+      summary: Входящий маршрут
       parameters:
         - $ref: '#/components/parameters/Accept'
       responses:
         '200':
-          description: Линия.
+          description: Маршрут.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/InboundLine'
+                $ref: '#/components/schemas/InboundRoute'
         '401':
           $ref: '#/components/responses/401'
         '404':
           $ref: '#/components/responses/404'
     put:
-      operationId: put-line
+      operationId: put-inbound-route
       tags:
-        - Входящие линии
-      summary: Включить или выключить линию
+        - Маршруты
+      summary: Включить или выключить маршрут
       description: |
-        Выключенная линия звонки не принимает: звонящий на наш номер услышит, что линия временно недоступна, звонок
-        через вашу АТС получит отказ. Остальные настройки линии меняются в кабинете.
+        Выключенный маршрут звонки не принимает: звонящий на наш номер услышит, что линия временно недоступна, звонок
+        через вашу АТС получит отказ. Остальные настройки маршрута меняются в кабинете.
       parameters:
         - $ref: '#/components/parameters/Accept'
         - $ref: '#/components/parameters/ContentType'
@@ -4000,18 +4001,18 @@ paths:
               enabled: false
       responses:
         '200':
-          description: Линия после изменения.
+          description: Маршрут после изменения.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/InboundLine'
+                $ref: '#/components/schemas/InboundRoute'
         '401':
           $ref: '#/components/responses/401'
         '404':
           $ref: '#/components/responses/404'
         '422':
           $ref: '#/components/responses/422'
-  '/lines/{id}/calls':
+  '/routes/inbound/{id}/calls':
     parameters:
       - name: id
         in: path
@@ -4019,12 +4020,12 @@ paths:
         schema:
           type: integer
     get:
-      operationId: get-line-calls
+      operationId: get-inbound-route-calls
       tags:
-        - Входящие линии
-      summary: Звонки линии
+        - Маршруты
+      summary: Звонки входящего маршрута
       description: |
-        Звонки на линию, новые сверху, по 50 на страницу. Объект звонка — как у обзвона (`GET /calls/{id}`): `number` —
+        Звонки на маршрут, новые сверху, по 50 на страницу. Объект звонка — как у обзвона (`GET /calls/{id}`): `number` —
         кто звонил, `status` — `success` (приняли) или `no_answer`, `duration` — секунды разговора, `data` — что прошёл
         по сценарию и что записал агент, `variables.answered_by` — внутренний номер сотрудника, который ответил.
       parameters:
@@ -4085,7 +4086,7 @@ paths:
       summary: Исходящие звонки сотрудника
       description: |
         Звонки, которые сотрудник сделал сам, новые сверху, по 50 на страницу. Входящие, которые он принял, — в журнале
-        линии (`GET /lines/{id}/calls`, поле `variables.answered_by`).
+        входящего маршрута (`GET /routes/inbound/{id}/calls`, поле `variables.answered_by`).
       parameters:
         - $ref: '#/components/parameters/Accept'
         - $ref: '#/components/parameters/DateFrom'
@@ -6538,12 +6539,6 @@ components:
             - plain
             - eight
           description: 'В каком виде номер уходит на станцию: `e164` — `+77011234567`, `plain` — `77011234567`, `eight` — `87011234567` (за рубеж `810…`). Тот же вид у номера абонента при переводе на станцию (с 1.17).'
-        city_code:
-          type:
-            - string
-            - 'null'
-          description: 'Код своего города (`7172`, `727`): номера этого города уходят на станцию без кода, 6 или 7 цифр, а номер звонящего из 6–7 цифр дописывается кодом. null — все номера полностью.'
-          example: '7172'
         state:
           type: string
           enum:
@@ -6558,7 +6553,7 @@ components:
           description: Когда последний раз была на связи.
         created_at:
           type: string
-    InboundLine:
+    InboundRoute:
       type: object
       properties:
         id:
@@ -6586,7 +6581,7 @@ components:
           type:
             - string
             - 'null'
-          description: 'У линии с АТС — номер станции, на который звонят: номер телефона в E.164 или короткий номер цифрами. null — все остальные звонки станции.'
+          description: 'У маршрута с АТС — номер станции, на который звонят: номер телефона в E.164 или короткий номер цифрами. null — все остальные звонки станции.'
           example: '2000'
         target:
           type: string
@@ -6611,7 +6606,7 @@ components:
           type:
             - integer
             - 'null'
-          description: Группа сотрудников, которой звонит линия.
+          description: Группа сотрудников, которой звонит маршрут.
         record:
           type: boolean
           description: Записывать разговоры.
@@ -6619,7 +6614,7 @@ components:
           type:
             - string
             - 'null'
-          description: Свой адрес вебхука линии. Пусто — уходит на адрес из настроек аккаунта.
+          description: Свой адрес вебхука маршрута. Пусто — уходит на адрес из настроек аккаунта.
         created_at:
           type: string
     Extension:
@@ -6637,19 +6632,24 @@ components:
           enum:
             - softphone
             - browser
-          description: 'softphone — софтфон по SIP (TLS), browser — оператор в браузере (раздел «Оператор»).'
+          description: 'softphone — софтфон по SIP (TLS), browser — «Телефон» в браузере.'
+        srtp:
+          type: string
+          enum:
+            - required
+            - 'off'
+          description: 'Шифрование голоса софтфона: required — звоним ему с обязательным SRTP (SDES), off — без требования SRTP. У browser всегда off: шифрование своё (DTLS-SRTP).'
         enabled:
           type: boolean
+        record_internal:
+          type: boolean
+          description: 'Записываются разговоры с коллегами: его звонки им и их звонки ему. Платно, за каждый отвеченный звонок; записи хранятся 3 месяца.'
         outbound:
           type: string
           enum:
             - none
             - pbx
-          description: 'none — звонит только коллегам; pbx — наружу через вашу АТС (`user_pbx_id`). Через наши номера сотрудники наружу не звонят.'
-        user_pbx_id:
-          type:
-            - integer
-            - 'null'
+          description: 'pbx — сотруднику подходит хоть один исходящий маршрут, звонит наружу через вашу АТС; none — звонит только коллегам. Через наши номера сотрудники наружу не звонят.'
         blocked:
           type: boolean
           description: Заблокирован за подозрительные звонки — разблокировка в кабинете.
@@ -6678,7 +6678,7 @@ components:
           enum:
             - pbx
             - ext
-          description: 'pbx — через вашу АТС (по цене `own_pbx_price` за секунду), ext — коллеге (бесплатно).'
+          description: 'pbx — наружу по исходящему маршруту через вашу АТС (по цене `own_pbx_price` за секунду), ext — коллеге (бесплатно).'
         status:
           type: string
           enum:
